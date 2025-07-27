@@ -37,6 +37,9 @@ def local_bar(youngs_modulus, cross_sectional_area, length):
     local_stiffness = (youngs_modulus * cross_sectional_area) / length * np.array([[1, -1], [-1, 1]])
     return local_stiffness
 
+local_stiffness_1 = local_bar(youngs_modulus_1, cross_sectional_area_1, length1)
+local_stiffness_2 = local_bar(youngs_modulus_2, cross_sectional_area_2, length2)
+
 def global_bar(local_stiffness, angle):
     # Calculate the global stiffness matrix for a 2D bar element
     angle_rad = np.radians(angle)
@@ -47,15 +50,23 @@ def global_bar(local_stiffness, angle):
     global_stiffness = np.transpose(transformation_matrix) @ local_stiffness @ transformation_matrix
     return global_stiffness, transformation_matrix
 
+global_stiffness_1, transformation_matrix_1 = global_bar(local_stiffness_1, alpha_1)
+global_stiffness_2, transformation_matrix_2 = global_bar(local_stiffness_2, alpha_2)
+
 def local_stiffness_matrix(assembly_matrix, global_stiffness):
     # Calculate the stiffness matrix for a 2D bar element using the assembly matrix
-    stiffness_matrix =  assembly_matrix @ global_stiffness @ np.transpose(assembly_matrix)
-    return stiffness_matrix
+    local_stiffness_matrix =  assembly_matrix @ global_stiffness @ np.transpose(assembly_matrix)
+    return local_stiffness_matrix
+
+local_stiffness_matrix_1 = local_stiffness_matrix(assembly_matrix_1, global_stiffness_1)
+local_stiffness_matrix_2 = local_stiffness_matrix(assembly_matrix_2, global_stiffness_2)
 
 def total_stiffness_matrix(stiffness_matrix_1, stiffness_matrix_2):
     # Calculate the total stiffness matrix for a 2D bar element
     total_stiffness = stiffness_matrix_1 + stiffness_matrix_2
     return total_stiffness  
+
+total_stiffness_matrix = total_stiffness_matrix(local_stiffness_matrix_1, local_stiffness_matrix_2)
 
 def find_displacement_vector(Q1, Q2, total_stiffness):
     # Calculate the displacement vector for a 2D bar element
@@ -63,14 +74,41 @@ def find_displacement_vector(Q1, Q2, total_stiffness):
     displacement_vector = np.linalg.solve(total_stiffness, force_vector)
     return displacement_vector
 
-def element_nodal_forces(displacement_vector, global_stiffness, transformation_matrix):
-    # Calculate the element nodal forces in global coordinates
-    local_displacement = transformation_matrix @ displacement_vector
-    element_nodal_forces = global_stiffness @ local_displacement
-    return element_nodal_forces
+displacement_vector = find_displacement_vector(Q1_1, Q2_1, total_stiffness_matrix)
 
-# To do:
-# Finish up from element nodal forces function
+def element_nodal_forces(global_bar, displacement_vector, assembly_matrix):
+    # Calculate the element nodal forces in global coordinates
+    nodal_forces = global_bar @ np.transpose(assembly_matrix) @ displacement_vector
+    return nodal_forces
+
+element_nodal_forces_1 = element_nodal_forces(global_stiffness_1, displacement_vector, assembly_matrix_1)
+element_nodal_forces_2 = element_nodal_forces(global_stiffness_2, displacement_vector, assembly_matrix_2)
+
+def element_nodal_forces_local(displacement_vector, assembly_matrix, transformation_matrix):
+    # Calculate the element nodal forces in local coordinates
+    local_nodal_forces = transformation_matrix @ np.transpose(assembly_matrix) @ displacement_vector
+    return local_nodal_forces
+
+element_nodal_forces_local_1 = element_nodal_forces_local(displacement_vector, assembly_matrix_1, transformation_matrix_1)
+element_nodal_forces_local_2 = element_nodal_forces_local(displacement_vector, assembly_matrix_2, transformation_matrix_2)
+
+def element_strain(element_nodal_forces_local, length):
+    # Calculate the element internal forces in local coordinates
+    strain = (element_nodal_forces_local[1] - element_nodal_forces_local[0]) / length
+    return strain
+
+element_strain_1 = element_strain(element_nodal_forces_local_1, length1)
+element_strain_2 = element_strain(element_nodal_forces_local_2, length2)
+
+def element_nodal_force_local(element_nodal_forces_local, local_stiffness):
+    # Calculate the element nodal forces in local coordinates
+    local_nodal_force = local_stiffness @ element_nodal_forces_local
+    return local_nodal_force
+
+element_nodal_force_local_1 = element_nodal_force_local(element_nodal_forces_local_1, local_stiffness_1)
+element_nodal_force_local_2 = element_nodal_force_local(element_nodal_forces_local_2, local_stiffness_2)
+
+print(element_nodal_force_local_2)
 
 # print(f"\n")
 # print(f"K1 = 1 x 10^8 * {K1/1e8}\n")
