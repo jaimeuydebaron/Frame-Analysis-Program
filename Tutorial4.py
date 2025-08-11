@@ -46,6 +46,9 @@ angle_3 = 270
 
 # Building the global forcing vector
 
+
+Q_nodal = np.array([10000, 0, 0, 10000, 0, 0]) # Nodal forces
+
 # UDL
 w_bar = -10000 # The uniform distributed load (UDL) in N/m
 L_UDL = 4.5 # Length of the bar it is acting on
@@ -57,7 +60,22 @@ def build_UDL(w_bar, L, assembly_matrix, transformation_matrix):
                                                     0,
                                                     w_bar * L / 2,
                                                     -w_bar * L ** 2 / 12])
-    big_F = transformation_matrix @ equivalent_forcing_element_coordinates
+    big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
+    Q = big_F @ assembly_matrix
+    return Q
+
+# PDL
+P = -50000 # The point distributed load (PDL) in N
+L = 4.5 # Length of the bar it is acting on
+
+def build_PDL(P, L, assembly_matrix, transformation_matrix):
+    equivalent_forcing_element_coordinates = np.array([0,
+                                                    P / 2,
+                                                    P * L / 8,
+                                                    0,
+                                                    P / 2,
+                                                    -P * L / 8])
+    big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
     Q = big_F @ assembly_matrix
     return Q
 
@@ -126,8 +144,9 @@ def find_displacement(stiffness_matrix, global_forcing_vector):
     displacement = np.linalg.solve(stiffness_matrix, global_forcing_vector)
     return displacement
 
-global_forcing_vector = build_UDL(w_bar, L_UDL, assembly_matrix_2, transformation_matrix_2)
-print(global_forcing_vector)
+global_forcing_vector_UDL = build_UDL(w_bar, L_UDL, assembly_matrix_2, transformation_matrix_2)
+global_forcing_vector_PDL = build_PDL(P, L, assembly_matrix_2, transformation_matrix_2)
+global_forcing_vector = global_forcing_vector_UDL + global_forcing_vector_PDL + Q_nodal
 
 displacement_vector = find_displacement(total_stiffness_matrix, global_forcing_vector)
 
@@ -166,3 +185,5 @@ def element_nodal_forces_global(global_stiffness, structural_deflections):
 element_nodal_forces_global_1 = element_nodal_forces_global(global_stiffness_1, structural_deflections_1)
 element_nodal_forces_global_2 = element_nodal_forces_global(global_stiffness_2, structural_deflections_2)
 element_nodal_forces_global_3 = element_nodal_forces_global(global_stiffness_3, structural_deflections_3)
+
+print(element_nodal_forces_global_1)
