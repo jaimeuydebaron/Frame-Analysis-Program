@@ -1,6 +1,7 @@
-# Tutorial 3 focuses on the calculation of the:
+# Tutorial 4 focuses on the calculation of the:
 # Dealing with frames
 # Element stiffness matrix in local coordinates for a frame element
+# But this time it can handle UDL and ENL (Equivalent Nodal Loading)
 
 import numpy as np
 import matplotlib.pyplot as plt
