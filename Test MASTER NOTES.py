@@ -42,6 +42,11 @@ Key Concept:
 - Aᶜ: Assembly matrix
     - Maps element matrices into the global system.
 
+5. DISPLACEMENT VECTORS
+- D: Global displacement vector.
+- dᵉ: Local displacement vector.
+    - dᵉ = Aᵉ · D
+
 5. FORCE VECTORS
 ----------------
 - Q: External force vector (global)

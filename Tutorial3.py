@@ -122,4 +122,4 @@ def element_nodal_forces_global(global_stiffness, structural_deflections):
 element_nodal_forces_global_1 = element_nodal_forces_global(global_stiffness_1, structural_deflections_1)
 element_nodal_forces_global_2 = element_nodal_forces_global(global_stiffness_2, structural_deflections_2)
 
-print(element_nodal_forces_global_1)
+print(local_frame_stiffness_1)
