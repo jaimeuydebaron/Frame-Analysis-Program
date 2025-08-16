@@ -63,7 +63,43 @@ Key Concept:
 """
 
 
+"""
+Types of loading
 
+Normal loading
+
+Uniformly distributed load
+Q_UDL = np.array([0, 
+                w_bar * L / 2, 
+                w_bar * L ** 2 / 12, 
+                0, 
+                w_bar * L / 2, 
+                -w_bar * L ** 2 / 12])
+
+Linearly varying load, peak intensity at x = L
+Q_LVL = np.array([0,
+                3 * w_bar * L / 20,
+                w_bar * L ** 2 / 30,
+                0,
+                7 * w_bar * L / 20,
+                - w_bar * L ** 2 / 20])
+
+Linearly varying load, peak intensity at x = 0
+Q_LVL = np.array([0,
+                7 * w_bar * L / 20,
+                w_bar * L ** 2 / 20,
+                0,
+                3 * w_bar * L / 20,
+                - w_bar * L ** 2 / 30])
+
+Mid-span point load
+Q_PL = np.array([0,
+                w_bar / 2,
+                w_bar * L / 8,
+                0,
+                w_bar / 2,
+                - w_bar * L / 8])
+"""
 
 
 
