@@ -130,16 +130,17 @@ def build_PDL_global_forcing_vector(P, L, assembly_matrix, transformation_matrix
 # Element information
 
 # Element 1
-length_1 = 3 # m
-second_moment_of_area_1 = 1e-6 # m^4
-area_1 = 1e-4 # m^2
+length_1 = 2.5 # m
+second_moment_of_area_1 = 7.5e-6 # m^4
+area_1 = 9e-4 # m^2
 youngs_modulus_1 = 200e9 # Pa
 assembly_matrix_1 = np.array([[0, 0, 0, 1, 0, 0],
-                              [0, 0, 0, 0, 0, 1],
-                              [0, 0, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 0, 0]]) # Generated manually
-angle_1 = 0
+                                             [0, 0, 0, 0, 1, 0],
+                                             [0, 0, 0, 0, 0, 1],
+                                             [0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0]]) # Generated manually
+angle_1 = 90
 element_1_node_1_location = np.array([0, 0])  # Node 1 location in global coordinates
 element_1_node_2_location = np.array([length_1, 0])  # Node 2 location in global coordinates
 
@@ -148,11 +149,12 @@ length_2 = 2 # m
 second_moment_of_area_2 = 1e-6 # m^4
 area_2 = 1e-4 # m^2
 youngs_modulus_2 = 200e9 # Pa
-assembly_matrix_2 = np.array([[1, 0, 0, 0, 0, 0],
-                              [0, 0, 1, 0, 0, 0],   
-                              [0, 0, 0, 1, 0, 0],
-                              [0, 0, 0, 0, 1, 0],
-                              [0, 0, 0, 0, 0, 1]]) # Generated manually
+assembly_matrix_2 = np.array([[0, 0, 0, 1, 0, 0],
+                                             [0, 0, 0, 0, 1, 0],
+                                             [0, 0, 0, 0, 0, 1],
+                                             [0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0]]) # Generated manually
 angle_2 = 0
 element_2_node_1_location = np.array([length_1, 0])  # Node 1 location in global coordinates
 element_2_node_2_location = np.array([length_2 + length_1, 0])  # Node 2 location in global coordinates
@@ -173,7 +175,7 @@ global_stiffness_matrix_1 = calc_global_stiffness_matrix(assembly_matrix_1, glob
 global_stiffness_matrix_2 = calc_global_stiffness_matrix(assembly_matrix_2, global_stiffness_2)
 
 # # Global forcing vector NORMAL
-normal_global_forcing_vector = np.array([0, 0, 25000, -10000, 0])  # Nodal forces
+normal_global_forcing_vector = np.array([0, 0, 25000, -10000, 0, 0])  # Nodal forces
 
 # Uniformly Distributed Load (UDL)
 w_bar_UDL = -40000  # The uniform distributed load (UDL) in N/m
@@ -202,7 +204,7 @@ UDL_global_forcing_vector = build_UDL_global_forcing_vector(w_bar_UDL, L_UDL, as
 # PDL_global_forcing_vector = build_PDL_global_forcing_vector(P, length_2, assembly_matrix_2, transformation_matrix_2)
 
 
-global_forcing_vector = normal_global_forcing_vector + UDL_global_forcing_vector  # Use only the normal forces for this example
+global_forcing_vector = normal_global_forcing_vector  # Use only the normal forces for this example
 
 total_global_stiffness_matrix = calc_total_global_stiffness_matrix(global_stiffness_matrix_1, global_stiffness_matrix_2)
 

@@ -146,7 +146,7 @@ def find_displacement(stiffness_matrix, global_forcing_vector):
 
 global_forcing_vector_UDL = build_UDL(w_bar, L_UDL, assembly_matrix_2, transformation_matrix_2)
 global_forcing_vector_PDL = build_PDL(P, L, assembly_matrix_2, transformation_matrix_2)
-global_forcing_vector = global_forcing_vector_UDL + global_forcing_vector_PDL + Q_nodal
+global_forcing_vector = Q_nodal
 
 displacement_vector = find_displacement(total_stiffness_matrix, global_forcing_vector)
 
@@ -186,4 +186,4 @@ element_nodal_forces_global_1 = element_nodal_forces_global(global_stiffness_1, 
 element_nodal_forces_global_2 = element_nodal_forces_global(global_stiffness_2, structural_deflections_2)
 element_nodal_forces_global_3 = element_nodal_forces_global(global_stiffness_3, structural_deflections_3)
 
-print(element_nodal_forces_global_1)
+print(transformation_matrix_1)
