@@ -1,110 +1,5 @@
-# CODE FOR ENME302 TEST
-# This code will be used for the ENME302 Test - August 19th 2025
-
-# The test will use frame elements
-# There will be no more than four frame elements per question. Each problem will have either 2, 3, or 4 frame elements.
-
-# The structure of the code will be similar to the tutorial code. I will build methods for 2, 3, and 4 frame elements,
-# and whichever one is needed will be used in the test. Each file will ask for the element properties, angles, and assembly matrices.
-# The subsequent calculations and plots will be completed in each file.
-
-# Some notes:
-
-
 """
-LINEAR ALGEBRA IN FINITE ELEMENT ANALYSIS (FEA)
-================================================
-
-1. COORDINATE SYSTEMS
----------------------
-- Local coordinate: Element-specific coordinate system.
-- Global coordinate: System-wide coordinate system.
-
-Key Concept:
-    Local → Transformation Matrix (Aᵉ) → Global
-2. VECTORS
-----------
-- Local vector: Defined in the element's local coordinate system.
-- Global vector: Defined in the global coordinate system.
-    - A node is a point where force acts.
-
-3. STIFFNESS MATRICES
----------------------
-- Kᵉ: Local stiffness matrix (element level).
-- K̂ᵉ: Transformed stiffness matrix in global coordinates.
-    - K̂ᵉ = (Aᵉ)ᵀ · Kᵉ · Aᵉ
-
-- K_G: Global stiffness matrix for the entire structure.
-    - K_G = Σ (Aᵉ)ᵀ · Kᵉ · Aᵉ
-
-4. ASSEMBLY MATRIX
-------------------
-- Aᶜ: Assembly matrix
-    - Maps element matrices into the global system.
-
-5. DISPLACEMENT VECTORS
-- D: Global displacement vector.
-- dᵉ: Local displacement vector.
-    - dᵉ = Aᵉ · D
-
-5. FORCE VECTORS
-----------------
-- Q: External force vector (global)
-    - Q = K_G · q
-
-- F′: Element forces at each node (global)
-    - F′ = K · (A′)ᵀ · q
-
-- d′: Element displacements (global)
-    - d′ = A′ · (A′)ᵀ · q
-
-- f′: Element forces at each node (local)
-    - f′ = K · d′
-"""
-
-
-"""
-Types of loading
-
-Normal loading
-
-Uniformly distributed load
-Q_UDL = np.array([0, 
-                w_bar * L / 2, 
-                w_bar * L ** 2 / 12, 
-                0, 
-                w_bar * L / 2, 
-                -w_bar * L ** 2 / 12])
-
-Linearly varying load, peak intensity at x = L
-Q_LVL = np.array([0,
-                3 * w_bar * L / 20,
-                w_bar * L ** 2 / 30,
-                0,
-                7 * w_bar * L / 20,
-                - w_bar * L ** 2 / 20])
-
-Linearly varying load, peak intensity at x = 0
-Q_LVL = np.array([0,
-                7 * w_bar * L / 20,
-                w_bar * L ** 2 / 20,
-                0,
-                3 * w_bar * L / 20,
-                - w_bar * L ** 2 / 30])
-
-Mid-span point load
-Q_PL = np.array([0,
-                w_bar / 2,
-                w_bar * L / 8,
-                0,
-                w_bar / 2,
-                - w_bar * L / 8])
-"""
-
-
-
-"""
-ENME302 - Finite Element Analysis (FEA) - Course Notes
+ENME302 - Finite Element Analysis (FEA) Test Notes
 University of Canterbury, Semester 2, 2025
 Instructor: Prof. Geoff Rodgers
 
@@ -112,7 +7,8 @@ Instructor: Prof. Geoff Rodgers
 1. INTRODUCTION TO FEA
 ===========================================================
 
-Finite Element Analysis (FEA) is a numerical method for solving complex structural problems by discretizing them into simpler elements.
+Finite Element Analysis (FEA) is a numerical method for solving
+structural problems by discretizing them into smaller elements.
 
 Key Steps:
 -----------
@@ -134,26 +30,46 @@ D. Define Degrees of Freedom (DOFs):
 2. SYMBOLS AND DEFINITIONS
 ===========================================================
 
-- f: Vector of applied forces
-- d: Vector of nodal displacements
-- K: Stiffness matrix
-- E: Young’s modulus
-- A: Cross-sectional area
-- L: Element length
-- I: Second moment of area
-- σ: Stress
-- ε: Strain
+- f   : Vector of applied forces
+- d   : Vector of nodal displacements
+- K   : Stiffness matrix
+- E   : Young’s modulus
+- A   : Cross-sectional area
+- L   : Element length
+- I   : Second moment of area
+- σ   : Stress
+- ε   : Strain
 - u(x): Displacement function
 - ψ(x): Shape function
-- θ: Angle between global and local axes
-- Λ: Transformation matrix
-- q: Global DOF vector
-- Q: Global force vector
+- θ   : Angle between global and local axes
+- Λ   : Transformation matrix
+- q   : Global DOF vector
+- Q   : Global force vector
+- Aᵉ  : Transformation matrix (local → global)
+- Aᶜ  : Assembly matrix (element → global)
 
 ===========================================================
-3. BAR (TRUSS) ELEMENT FORMULATION
+3. COORDINATE SYSTEMS & TRANSFORMATIONS
 ===========================================================
 
+- Local coordinate: Element-specific system.
+- Global coordinate: Structure-wide system.
+
+Transformations:
+    d_local  = Aᵉ · d_global
+    f_global = (Aᵉ)ᵀ · f_local
+    K_global = (Aᵉ)ᵀ · K_local · Aᵉ
+
+Angle definition:
+    - Start from the global x-axis (Xg).
+    - Rotate anticlockwise to the element local x-axis (Xe).
+
+===========================================================
+4. ELEMENT FORMULATIONS
+===========================================================
+
+(A) Bar (Truss) Element:
+------------------------
 Displacement:
     u(x) = ψ₁(x)·d₁ + ψ₂(x)·d₂
     ψ₁(x) = 1 - x/L
@@ -163,53 +79,13 @@ Strain:
     ε(x) = (d₂ - d₁) / L
 
 Stress:
-    σ(x) = E * ε(x)
+    σ(x) = E · ε(x)
 
 Stiffness Matrix:
-    K = (EA / L) * [[1, -1], [-1, 1]]
+    K_bar = (EA / L) * [[1, -1], [-1, 1]]
 
-===========================================================
-4. ENERGY METHODS
-===========================================================
-
-Work-Energy Method:
-    U = W = (1/2)·P·δ
-
-Virtual Work Principle:
-    1·Δ = Σ(fᵢ·Fᵢ·Lᵢ) / (Aᵢ·Eᵢ)
-
-===========================================================
-5. TRANSFORMATION BETWEEN COORDINATES
-===========================================================
-
-Transformation Matrix (Λ):
-    Λ = [[cosθ, sinθ, 0, 0],
-         [0, 0, cosθ, sinθ]]
-
-Transformations:
-    d_local = Λ · d_global
-    f_global = Λᵀ · f_local
-    K_global = Λᵀ · K_local · Λ
-
-===========================================================
-6. GLOBAL SYSTEM ASSEMBLY
-===========================================================
-
-Assembly Matrix (Aᵉ): Maps local DOFs to global DOFs
-
-Global Stiffness Matrix:
-    K_G = Σ Aᵉᵀ · K̂ᵉ · Aᵉ
-
-Global Force Vector:
-    Q = Σ Aᵉᵀ · fᵉ
-
-Solve:
-    Q = K_G · q
-
-===========================================================
-7. BEAM ELEMENTS
-===========================================================
-
+(B) Beam Element:
+-----------------
 Assumptions:
     - Slender beams (L >> cross-section)
     - Small deflections
@@ -220,30 +96,86 @@ Shape Functions (Hermite):
 
 Stiffness Matrix:
     K_beam = (EI / L³) * [
-        [12, 6L, -12, 6L],
-        [6L, 4L², -6L, 2L²],
-        [-12, -6L, 12, -6L],
-        [6L, 2L², -6L, 4L²]
+        [12,   6L,  -12,   6L],
+        [6L,  4L²,  -6L,  2L²],
+        [-12, -6L,   12,  -6L],
+        [6L,  2L²,  -6L,  4L²]
     ]
 
+(C) Frame Element:
+------------------
+- Combines axial and flexural behavior.
+- 6 DOF per element: [u₁, v₁, θ₁, u₂, v₂, θ₂]
+
+Frame Stiffness:
+    K_frame = K_bar + K_beam
+    K̂_frame = (Aᵉ)ᵀ · K_frame · Aᵉ
+
 ===========================================================
-8. FRAME ELEMENTS
+5. LOADING TYPES
 ===========================================================
 
-Combines axial and flexural behavior:
-    - 6 DOF: [u₁, v₁, θ₁, u₂, v₂, θ₂]
+(A) Uniformly Distributed Load (UDL):
+    Q_UDL = [0, wL/2, wL²/12, 0, wL/2, -wL²/12]
 
-Frame Stiffness Matrix:
-    K_frame = K_bar + K_beam (superposition)
+(B) Linearly Varying Load (LVL):
+    Peak at x = L:
+        Q_LVL = [0, 3wL/20, wL²/30, 0, 7wL/20, -wL²/20]
+    Peak at x = 0:
+        Q_LVL = [0, 7wL/20, wL²/20, 0, 3wL/20, -wL²/30]
 
-Transformation:
-    K̂_frame = Λᵀ · K_frame · Λ
+(C) Mid-span Point Load:
+    Q_PL = [0, w/2, wL/8, 0, w/2, -wL/8]
+
+===========================================================
+6. GLOBAL SYSTEM ASSEMBLY
+===========================================================
+
+- Kᵉ   : Local element stiffness matrix
+- K̂ᵉ  : Element stiffness matrix in global coordinates
+          K̂ᵉ = (Aᵉ)ᵀ · Kᵉ · Aᵉ
+
+- K_G  : Global stiffness matrix for structure
+          K_G = Σ (Aᵉ)ᵀ · Kᵉ · Aᵉ
+
+- Aᶜ   : Assembly matrix, maps element matrices into global system.
+
+Vectors:
+    - D  : Global displacement vector
+    - dᵉ : Local displacement vector  →  dᵉ = Aᵉ · D
+    - Q  : External global force vector  →  Q = K_G · q
+    - f′ : Element forces in local coords
+    - F′ : Element forces in global coords
+
+===========================================================
+7. NODE & ELEMENT NUMBERING
+===========================================================
+
+1. Node numbering:
+   - Top → bottom, then left → right.
+
+2. Element numbering:
+   - Choose consistent scheme (left → right or top → bottom).
+   - Element local axis always goes Node 1 → Node 2.
+
+3. DOF Alignment:
+   - Each qi aligns with the same DOF across all connected elements.
+
+===========================================================
+8. ENERGY METHODS
+===========================================================
+
+Work-Energy Method:
+    U = W = (1/2)·P·δ
+
+Virtual Work Principle:
+    1·Δ = Σ(fᵢ·Fᵢ·Lᵢ) / (Aᵢ·Eᵢ)
 
 ===========================================================
 9. PYTHON IMPLEMENTATION STRATEGY
 ===========================================================
 
-Functions:
+Functions to build:
     - local_bar(E, A, L)
     - global_bar(K_local, θ)
     - local_beam(E, I, L)
@@ -253,11 +185,12 @@ Functions:
     - compute_internal_forces(K_local, d_local)
 
 ===========================================================
-10. FINAL REMARKS
+10. QUICK REMINDERS
 ===========================================================
 
-- FEA is powerful for solving complex structures.
-- Understanding the formulation helps debug and validate software results.
-- Always check boundary conditions and constraints.
-- For large deformations, iterative nonlinear analysis is required.
+- "q" is always on the left-hand side of matrix equations (displacements).
+- "D" is associated with element DOFs (roof of equation).
+- Align DOFs across elements at shared nodes.
+- Check numbering consistency for nodes, elements, and axes.
+- For nonlinear problems (large deflections), iterative methods required.
 """

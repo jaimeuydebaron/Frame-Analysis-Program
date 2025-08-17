@@ -77,8 +77,10 @@ def build_UDL_global_forcing_vector(w_bar, L, assembly_matrix, transformation_ma
                                                     0,
                                                     w_bar * L / 2,
                                                     -w_bar * L ** 2 / 12])
+    print(equivalent_forcing_element_coordinates)
     big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
-    UDL_global_forcing_vector = big_F @ assembly_matrix
+    UDL_global_forcing_vector = assembly_matrix @ big_F
+    print(UDL_global_forcing_vector)
     return UDL_global_forcing_vector
 
 """ IF THERE IS AN LVL W/ PEAK INTENSITY AT X = L """
@@ -91,7 +93,7 @@ def build_LVL_peakXL_global_forcing_vector(w_bar, L, assembly_matrix, transforma
                                                     7 * w_bar * L / 20,
                                                     - w_bar * L ** 2 / 20])
     big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
-    LVL_peakXL_global_forcing_vector = big_F @ assembly_matrix
+    LVL_peakXL_global_forcing_vector = assembly_matrix @ big_F
     return LVL_peakXL_global_forcing_vector
 
 """ IF THERE IS AN LVL W/ PEAK INTENSITY AT X = 0 """
@@ -104,7 +106,7 @@ def build_LVL_peakXZERO_global_forcing_vector(w_bar, L, assembly_matrix, transfo
                                                     3 * w_bar * L / 20,
                                                     - w_bar * L ** 2 / 30])
     big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
-    LVL_peakXZERO_global_forcing_vector = big_F @ assembly_matrix
+    LVL_peakXZERO_global_forcing_vector = assembly_matrix @ big_F
     return LVL_peakXZERO_global_forcing_vector
 
 """ IF THERE IS A PL: """
@@ -117,48 +119,69 @@ def build_PDL_global_forcing_vector(P, L, assembly_matrix, transformation_matrix
                                                     P / 2,
                                                     -P * L / 8])
     big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
-    PDL_global_forcing_vector = big_F @ assembly_matrix
+    PDL_global_forcing_vector = assembly_matrix @ big_F
     return PDL_global_forcing_vector
 
 
 # ___________________________________________________________________________________________________
 
+
+
 # Element information
 
 # Element 1
-length_1 = 8 # m
-second_moment_of_area_1 = 5e-4 # m^4
-area_1 = 1e-5 # m^2
+length_1 = 3 # m
+second_moment_of_area_1 = 1e-6 # m^4
+area_1 = 1e-4 # m^2
 youngs_modulus_1 = 200e9 # Pa
 assembly_matrix_1 = np.array([[0, 0, 0, 1, 0, 0],
                               [0, 0, 0, 0, 0, 1],
+                              [0, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 0, 0],
                               [0, 0, 0, 0, 0, 0]]) # Generated manually
-angle_1 = 270
-element_1_node_1_location = np.array([0, length_1])  # Node 1 location in global coordinates
-element_1_node_2_location = np.array([0, 0])  # Node 2 location in global coordinates
+angle_1 = 0
+element_1_node_1_location = np.array([0, 0])  # Node 1 location in global coordinates
+element_1_node_2_location = np.array([length_1, 0])  # Node 2 location in global coordinates
 
 # Element 2 (same properties as Element 1)
-length_2 = 10 # m
-second_moment_of_area_2 = 5e-4 # m^4
-area_2 = 1e-5 # m^2
+length_2 = 2 # m
+second_moment_of_area_2 = 1e-6 # m^4
+area_2 = 1e-4 # m^2
 youngs_modulus_2 = 200e9 # Pa
 assembly_matrix_2 = np.array([[1, 0, 0, 0, 0, 0],
                               [0, 0, 1, 0, 0, 0],   
+                              [0, 0, 0, 1, 0, 0],
+                              [0, 0, 0, 0, 1, 0],
                               [0, 0, 0, 0, 0, 1]]) # Generated manually
 angle_2 = 0
-element_2_node_1_location = np.array([0, 0])  # Node 1 location in global coordinates
-element_2_node_2_location = np.array([length_2, 0])  # Node 2 location in global coordinates
+element_2_node_1_location = np.array([length_1, 0])  # Node 1 location in global coordinates
+element_2_node_2_location = np.array([length_2 + length_1, 0])  # Node 2 location in global coordinates
 
 """ UDL AND PDL INFORMATION """
 
+
+# ___________________________________________________________________________________________________
+
+# Perform calculations
+local_stiffness_1 = calc_local_coordinates_element_stiffness_matrix(youngs_modulus_1, area_1, second_moment_of_area_1, length_1)
+local_stiffness_2 = calc_local_coordinates_element_stiffness_matrix(youngs_modulus_2, area_2, second_moment_of_area_2, length_2)
+
+global_stiffness_1, transformation_matrix_1 = calc_global_coordinates_element_stiffness_matrix(local_stiffness_1, angle_1)
+global_stiffness_2, transformation_matrix_2 = calc_global_coordinates_element_stiffness_matrix(local_stiffness_2, angle_2)
+
+global_stiffness_matrix_1 = calc_global_stiffness_matrix(assembly_matrix_1, global_stiffness_1)
+global_stiffness_matrix_2 = calc_global_stiffness_matrix(assembly_matrix_2, global_stiffness_2)
+
 # # Global forcing vector NORMAL
-normal_global_forcing_vector = np.array([0, 140000, 0])  # Nodal forces
+normal_global_forcing_vector = np.array([0, 0, 25000, -10000, 0])  # Nodal forces
 
-# # Uniformly Distributed Load (UDL)
-# w_bar_UDL = -10000  # The uniform distributed load (UDL) in N/m
-# L_UDL = length_2  # Length of the bar it is acting on
+# Uniformly Distributed Load (UDL)
+w_bar_UDL = -40000  # The uniform distributed load (UDL) in N/m
+L_UDL = length_1  # Length of the bar it is acting on
 
-# UDL_global_forcing_vector = build_UDL_global_forcing_vector(w_bar_UDL, L_UDL, assembly_matrix_2, transformation_matrix_2)
+UDL_global_forcing_vector = build_UDL_global_forcing_vector(w_bar_UDL, L_UDL, assembly_matrix_1, transformation_matrix_1)
+
+
 
 # # Linearly Varying Load with peak at x = L
 # w_bar_LVL_XL = 10000 # The linearly varying load (LVL) in N/m
@@ -179,19 +202,7 @@ normal_global_forcing_vector = np.array([0, 140000, 0])  # Nodal forces
 # PDL_global_forcing_vector = build_PDL_global_forcing_vector(P, length_2, assembly_matrix_2, transformation_matrix_2)
 
 
-global_forcing_vector = normal_global_forcing_vector  # Use only the normal forces for this example
-
-# ___________________________________________________________________________________________________
-
-# Perform calculations
-local_stiffness_1 = calc_local_coordinates_element_stiffness_matrix(youngs_modulus_1, area_1, second_moment_of_area_1, length_1)
-local_stiffness_2 = calc_local_coordinates_element_stiffness_matrix(youngs_modulus_2, area_2, second_moment_of_area_2, length_2)
-
-global_stiffness_1, transformation_matrix_1 = calc_global_coordinates_element_stiffness_matrix(local_stiffness_1, angle_1)
-global_stiffness_2, transformation_matrix_2 = calc_global_coordinates_element_stiffness_matrix(local_stiffness_2, angle_2)
-
-global_stiffness_matrix_1 = calc_global_stiffness_matrix(assembly_matrix_1, global_stiffness_1)
-global_stiffness_matrix_2 = calc_global_stiffness_matrix(assembly_matrix_2, global_stiffness_2)
+global_forcing_vector = normal_global_forcing_vector + UDL_global_forcing_vector  # Use only the normal forces for this example
 
 total_global_stiffness_matrix = calc_total_global_stiffness_matrix(global_stiffness_matrix_1, global_stiffness_matrix_2)
 
@@ -208,6 +219,9 @@ element_nodal_forces_local_2 = calc_local_element_nodal_forces(local_stiffness_2
 
 element_nodal_forces_global_1 = calc_global_element_nodal_forces(global_stiffness_1, global_structural_deflections_1)
 element_nodal_forces_global_2 = calc_global_element_nodal_forces(global_stiffness_2, global_structural_deflections_2)
+
+
+
 
 # ___________________________________________________________________________________________________
 
@@ -312,14 +326,14 @@ fig, ax = plt.subplots()
 plot_deflected_shape(ax,
     element_1_node_1_location[0], element_1_node_1_location[1],
     element_1_node_2_location[0], element_1_node_2_location[1],
-    local_structural_deflections_1, 100, 30, angle_1
+    local_structural_deflections_1, 10, 30, angle_1
 )
 
 # Second element
 plot_deflected_shape(ax,
     element_2_node_1_location[0], element_2_node_1_location[1],
     element_2_node_2_location[0], element_2_node_2_location[1],
-    local_structural_deflections_2, 100, 30, angle_2
+    local_structural_deflections_2, 10, 30, angle_2
 )
 
 ax.set_aspect('equal')
