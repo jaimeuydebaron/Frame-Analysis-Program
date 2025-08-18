@@ -5,138 +5,25 @@ class FrameAnalysis:
     def __init__(self):
         self.np_precision = 4
         np.set_printoptions(precision=self.np_precision, suppress=True)
-    
-    def parse_node_input(self, nodes_input):
-        """
-        Parse compact node input format into full node dictionaries.
-        Input format: [x, y, 'support_type', 'label'] or [x, y, 'support_type']
-        """
-        nodes = []
-        for i, node_data in enumerate(nodes_input):
-            if len(node_data) == 3:
-                x, y, support_type = node_data
-                label = f'Node {i + 1}'
-            elif len(node_data) == 4:
-                x, y, support_type, label = node_data
+
+    def _process_nodes(self, nodes):
+        constraints = {}
+        for node_id, node in nodes.items():
+            n = (node_id - 1) * 3
+            if node['type'] == 'fixed':
+                constraints.update({n: 0.0, n+1: 0.0, n+2: 0.0})
+            elif node['type'] == 'roller_x':
+                constraints.update({n+1: 0.0})
+            elif node['type'] == 'roller_y':
+                constraints.update({n: 0.0})
+            elif node['type'] == 'pinned':
+                constraints.update({n: 0.0, n+1: 0.0})
+            elif node['type'] == 'free':
+                pass
             else:
-                raise ValueError(f"Node {i + 1}: Expected format [x, y, 'support_type'] or [x, y, 'support_type', 'label']")
-            
-            nodes.append({
-                'position': np.array([x, y]),
-                'type': support_type,
-                'label': label
-            })
-        
-        return nodes
-    def get_expected_dofs_for_node_type(self, node_type):
-        """Return expected DOFs for each node type"""
-        dof_types = {
-            'fixed': [],  # No DOFs - all restrained
-            'pin': ['translation'],  # Only rotational DOF (no translations)
-            'free': ['translation', 'rotation']  # All DOFs available
-        }
-        return dof_types.get(node_type, ['translation', 'rotation'])
-    
-    def validate_node_dof_assignments(self, nodes, dof_definitions):
-        """Validate that DOF assignments match node support types"""
-        print("\nNODE TYPE VALIDATION:")
-        print("="*60)
-        
-        validation_results = []
-        
-        for node_idx, node in enumerate(nodes):
-            node_type = node['type']
-            node_label = node.get('label', f'Node {node_idx + 1}')
-            expected_dof_types = self.get_expected_dofs_for_node_type(node_type)
-            
-            # Find DOFs assigned to this node
-            assigned_dofs = [dof for dof in dof_definitions if dof.get('node_index') == node_idx]
-            assigned_dof_types = [dof['type'] for dof in assigned_dofs]
-            
-            print(f"\n{node_label} ({node_type.upper()} support):")
-            print(f"  Position: ({node['position'][0]:.1f}, {node['position'][1]:.1f})")
-            print(f"  Expected DOF types: {expected_dof_types if expected_dof_types else 'None (fully restrained)'}")
-            print(f"  Assigned DOF types: {assigned_dof_types if assigned_dof_types else 'None'}")
-            
-            # Check for inconsistencies
-            issues = []
-            
-            if node_type == 'fixed' and assigned_dofs:
-                issues.append("FIXED node should have no DOFs assigned")
-            
-            elif node_type == 'pin':
-                # Pin should only have rotation DOF, no translations
-                if 'translation' in assigned_dof_types:
-                    issues.append("PIN node should not have translation DOFs")
-                if 'rotation' not in assigned_dof_types:
-                    issues.append("PIN node should have rotation DOF")
-            
-            elif node_type == 'free':
-                # Free node should have all DOF types
-                if 'translation' not in assigned_dof_types:
-                    issues.append("FREE node should have translation DOFs")
-                if 'rotation' not in assigned_dof_types:
-                    issues.append("FREE node should have rotation DOF")
-            
-            if issues:
-                print(f"  ⚠️  VALIDATION ISSUES:")
-                for issue in issues:
-                    print(f"     - {issue}")
-                validation_results.append({
-                    'node': node_label,
-                    'status': 'ISSUES',
-                    'issues': issues
-                })
-            else:
-                print(f"  ✅ Validation passed")
-                validation_results.append({
-                    'node': node_label,
-                    'status': 'PASSED',
-                    'issues': []
-                })
-        
-        # Summary
-        passed = sum(1 for result in validation_results if result['status'] == 'PASSED')
-        total = len(validation_results)
-        print(f"\nValidation Summary: {passed}/{total} nodes passed validation")
-        
-        if passed != total:
-            print("\n⚠️  Please review the issues above to ensure your model is correct!")
-        
-        return validation_results
-    
-    def plot_node_supports(self, ax, nodes):
-        """Add visual indicators for different support types"""
-        support_symbols = {
-            'fixed': {'marker': 's', 'color': 'red', 'size': 120, 'label': 'Fixed Support'},
-            'pin': {'marker': '^', 'color': 'blue', 'size': 100, 'label': 'Pin Support'},
-            'free': {'marker': 'o', 'color': 'green', 'size': 80, 'label': 'Free Node'}
-        }
-        
-        # Track which support types we've plotted for legend
-        plotted_types = set()
-        
-        for node in nodes:
-            pos = node['position']
-            node_type = node['type']
-            symbol = support_symbols[node_type]
-            
-            # Plot support symbol
-            ax.scatter(pos[0], pos[1], 
-                      marker=symbol['marker'], 
-                      c=symbol['color'], 
-                      s=symbol['size'],
-                      alpha=0.7, 
-                      edgecolors='black',
-                      linewidth=2,
-                      zorder=15,
-                      label=symbol['label'] if node_type not in plotted_types else "")
-            
-            plotted_types.add(node_type)
-            
-            # Add node label
-            ax.text(pos[0], pos[1] - 0.15, node.get('label', ''), 
-                   fontsize=10, ha='center', weight='bold')
+                raise ValueError(f"Unknown node type: {node['type']}")
+        return constraints
+   
     
     # CORE CALCULATION FUNCTIONS
     def calc_local_coordinates_element_stiffness_matrix(self, youngs_modulus, area, second_moment_of_area, length):
@@ -193,49 +80,134 @@ class FrameAnalysis:
         return global_stiffness @ global_structural_deflections
 
     # LOAD FUNCTIONS
-    def build_UDL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix):
-        equivalent_forcing_element_coordinates = np.array([0,
-                                                        w_bar * L / 2,
-                                                        w_bar * L ** 2 / 12,
-                                                        0,
-                                                        w_bar * L / 2,
-                                                        -w_bar * L ** 2 / 12])
+    def build_UDL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction='local'):
+        """
+        Build global forcing vector for a UDL.
+        
+        Args:
+            w_bar: Load intensity [N/m]
+            L: Element length [m]
+            assembly_matrix: Element assembly matrix
+            transformation_matrix: Element transformation matrix
+            direction: 'local' (perpendicular to element) or 'vertical' (vertically downward)
+        """
+        if direction == 'local':
+            # Original implementation - load acts perpendicular to element
+            equivalent_forcing_element_coordinates = np.array([0,
+                                                            w_bar * L / 2,
+                                                            w_bar * L ** 2 / 12,
+                                                            0,
+                                                            w_bar * L / 2,
+                                                            -w_bar * L ** 2 / 12])
+        elif direction == 'vertical':
+            # Extract angle from transformation matrix
+            angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+            
+            # Decompose vertical load into local components
+            w_transverse = w_bar * np.cos(angle_rad)  # Perpendicular to element
+            w_axial = w_bar * np.sin(angle_rad)       # Along element axis
+            
+            # Combine transverse and axial components
+            equivalent_forcing_element_coordinates = np.array([w_axial * L / 2,           # Axial at node 1
+                                                            w_transverse * L / 2,       # Transverse at node 1
+                                                            w_transverse * L ** 2 / 12, # Moment at node 1
+                                                            w_axial * L / 2,           # Axial at node 2
+                                                            w_transverse * L / 2,       # Transverse at node 2
+                                                            -w_transverse * L ** 2 / 12]) # Moment at node 2
+        else:
+            raise ValueError(f"Unknown direction: {direction}. Use 'local' or 'vertical'")
+        
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         UDL_global_forcing_vector = assembly_matrix @ big_F
         return UDL_global_forcing_vector
 
-    def build_LVL_peakXL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix):
-        equivalent_forcing_element_coordinates = np.array([0,
-                                                        3 * w_bar * L / 20,
-                                                        w_bar * L ** 2 / 30,
-                                                        0,
-                                                        7 * w_bar * L / 20,
-                                                        - w_bar * L ** 2 / 20])
-        big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
-        LVL_peakXL_global_forcing_vector = assembly_matrix @ big_F
-        return LVL_peakXL_global_forcing_vector
-
-    def build_LVL_peakXZERO_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix):
+    def build_LVL_peakXZERO_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction='local'):
+        """
+        Build global forcing vector for a linearly varying load (peak at x=0, zero at x=L).
+        """
+        # Original implementation
         equivalent_forcing_element_coordinates = np.array([0,
                                                         7 * w_bar * L / 20,
                                                         w_bar * L ** 2 / 20,
                                                         0,
                                                         3 * w_bar * L / 20,
-                                                        - w_bar * L ** 2 / 30])
+                                                        -w_bar * L ** 2 / 30])
+        
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         LVL_peakXZERO_global_forcing_vector = assembly_matrix @ big_F
         return LVL_peakXZERO_global_forcing_vector
 
-    def build_PDL_global_forcing_vector(self, P, L, assembly_matrix, transformation_matrix):
+    def build_LVL_peakXL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction='local'):
+        """
+        Build global forcing vector for a linearly varying load (zero at x=0, peak at x=L).
+        """
+        # Original implementation
         equivalent_forcing_element_coordinates = np.array([0,
-                                                        P / 2,
-                                                        P * L / 8,
+                                                        3 * w_bar * L / 20,
+                                                        w_bar * L ** 2 / 30,
                                                         0,
-                                                        P / 2,
-                                                        -P * L / 8])
+                                                        7 * w_bar * L / 20,
+                                                        -w_bar * L ** 2 / 20])
+        
+        big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
+        LVL_peakXL_global_forcing_vector = assembly_matrix @ big_F
+        return LVL_peakXL_global_forcing_vector
+
+    def build_PDL_global_forcing_vector(self, P, L, a, assembly_matrix, transformation_matrix, direction='local'):
+        """
+        Build global forcing vector for a point load at mid-span.
+        """
+        if direction == 'local':
+            # Original implementation
+            equivalent_forcing_element_coordinates = np.array([0,
+                                                            P / 2,
+                                                            P * L / 8,
+                                                            0,
+                                                            P / 2,
+                                                            -P * L / 8])
+        elif direction == 'vertical':
+            # Extract angle from transformation matrix
+            angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+            
+            # Decompose vertical load into local components
+            P_transverse = P * np.cos(angle_rad)
+            P_axial = P * np.sin(angle_rad)
+            
+            # Combine components
+            equivalent_forcing_element_coordinates = np.array([P_axial * (1 - a / L),           # Half axial at node 1
+                                                            P_transverse / 2,       # Half transverse at node 1
+                                                            P_transverse * L / 8,   # Moment at node 1
+                                                            P_axial * a/ L,           # Half axial at node 2
+                                                            P_transverse / 2,       # Half transverse at node 2
+                                                            -P_transverse * L / 8]) # Moment at node 2
+        else:
+            raise ValueError(f"Unknown direction: {direction}. Use 'local' or 'vertical'")
+        
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         PDL_global_forcing_vector = assembly_matrix @ big_F
         return PDL_global_forcing_vector
+
+    def build_DAL_global_forcing_vector(self, P, L, assembly_matrix, transformation_matrix):
+        equivalent_forcing_element_coordinates = np.array([P * L / 2,
+                                                        0,
+                                                        0,
+                                                        P * L / 2,
+                                                        0,
+                                                        0])
+        big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
+        DAL_global_forcing_vector = assembly_matrix @ big_F
+        return DAL_global_forcing_vector
+    
+    def build_CAL_global_forcing_vector(self, P, L, a, assembly_matrix, transformation_matrix):
+        equivalent_forcing_element_coordinates = np.array([P * (1 - a / L),
+                                                        0,
+                                                        0,
+                                                        P * a / L,
+                                                        0,
+                                                        0])
+        big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
+        CAL_global_forcing_vector = assembly_matrix @ big_F
+        return CAL_global_forcing_vector
 
     # ENHANCED PRINTING FUNCTIONS
     def find_common_factor(self, matrix):
@@ -294,91 +266,133 @@ class FrameAnalysis:
             print(np.array_str(simplified_matrix, precision=4, suppress_small=True))
         print()
 
-    def extract_node_coordinates_and_dofs(self, nodes, dof_definitions, total_structural_deflections):
+    def extract_node_coordinates_and_dofs(self, nodes_config, total_structural_deflections):
         """
-        Extract node coordinates and their corresponding DOFs from nodes and dof_definitions.
-        Returns a dictionary mapping node coordinates to their DOF information.
+        Extract node coordinates and their corresponding DOFs using the actual node configuration.
+        This handles reduced DOF systems where constrained DOFs are eliminated.
         """
-        node_dofs = {}
+        nodes = {}
         
-        for node_idx, node in enumerate(nodes):
-            node_pos = tuple(node['position'])  # Convert to tuple for dict key
-            node_type = node['type']
-            node_label = node.get('label', f'Node {node_idx + 1}')
-            
-            node_dofs[node_pos] = {
-                'dofs': [],
-                'type': node_type,
-                'label': node_label,
-                'index': node_idx
-            }
+        # Use the actual node configuration to get coordinates
+        for node_id, node_info in nodes_config.items():
+            node_coords = tuple(node_info['coords'])
+            nodes[node_coords] = {'dofs': [], 'node_id': node_id}
         
-        # Map DOFs to nodes based on node_index in dof_definitions
-        for dof_idx, dof_def in enumerate(dof_definitions):
-            if dof_idx < len(total_structural_deflections):
-                dof_name = dof_def['name']
-                dof_type = dof_def['type']
-                dof_value = total_structural_deflections[dof_idx]
-                node_index = dof_def.get('node_index', 0)
+        # Create a mapping of unconstrained DOFs to global DOF indices
+        # This accounts for the reduced system where constrained DOFs are eliminated
+        dof_names = ['ux', 'uy', 'rz']
+        dof_types = ['translation', 'translation', 'rotation']
+        
+        # Create list of all DOFs with their constraint status
+        all_dofs = []
+        for node_id, node_info in nodes_config.items():
+            node_type = node_info['type']
+            for local_dof in range(3):
+                dof_name = f"Node{node_id}_{dof_names[local_dof]}"
                 
-                # Find the node position for this node index
-                if node_index < len(nodes):
-                    node_pos = tuple(nodes[node_index]['position'])
-                    unit = "[m]" if dof_type == 'translation' else "[rad]" if dof_type == 'rotation' else "[?]"
-                    
-                    node_dofs[node_pos]['dofs'].append({
-                        'name': dof_name,
-                        'value': dof_value,
-                        'unit': unit,
-                        'dof_idx': dof_idx
-                    })
+                # Determine if this DOF is constrained
+                is_constrained = False
+                if node_type == 'fixed':
+                    is_constrained = True
+                elif node_type == 'roller_x' and local_dof == 1:  # uy constrained
+                    is_constrained = True
+                elif node_type == 'roller_y' and local_dof == 0:  # ux constrained
+                    is_constrained = True
+                elif node_type == 'pinned' and local_dof in [0, 1]:  # ux, uy constrained
+                    is_constrained = True
+                
+                all_dofs.append({
+                    'node_id': node_id,
+                    'local_dof': local_dof,
+                    'name': dof_name,
+                    'type': dof_types[local_dof],
+                    'constrained': is_constrained
+                })
         
-        return node_dofs
-
-    def add_node_dof_textboxes(self, ax, node_dofs):
-        """
-        Add text boxes next to each node showing their DOF values and support type.
-        """
-        for node_coords, node_data in node_dofs.items():
-            # Create text content
-            text_lines = [f"{node_data['label']} ({node_data['type'].upper()})"]
-            text_lines.append(f"Position: ({node_coords[0]:.1f}, {node_coords[1]:.1f})")
-            text_lines.append("─" * 30)
+        # Map unconstrained DOFs to solution indices
+        unconstrained_dof_idx = 0
+        for dof_info in all_dofs:
+            node_id = dof_info['node_id']
+            node_coords = None
+            for nid, ninfo in nodes_config.items():
+                if nid == node_id:
+                    node_coords = tuple(ninfo['coords'])
+                    break
             
-            if node_data['dofs']:
-                for dof in node_data['dofs']:
-                    text_lines.append(f"{dof['name']}: {dof['value']:.3e} {dof['unit']}")
+            if dof_info['constrained']:
+                # Constrained DOF - value is zero
+                dof_value = 0.0
             else:
-                text_lines.append("No DOFs (Fully Restrained)")
+                # Unconstrained DOF - get value from solution
+                if unconstrained_dof_idx < len(total_structural_deflections):
+                    dof_value = total_structural_deflections[unconstrained_dof_idx]
+                    unconstrained_dof_idx += 1
+                else:
+                    dof_value = 0.0
             
-            text_content = "\n".join(text_lines)
+            # Add to node's DOF list
+            unit = "[m]" if dof_info['type'] == 'translation' else "[rad]"
+            nodes[node_coords]['dofs'].append({
+                'name': dof_info['name'],
+                'value': dof_value,
+                'unit': unit,
+                'constrained': dof_info['constrained']
+            })
+        
+        return nodes
+
+    def add_node_dof_textboxes(self, ax, nodes, nodes_config):
+        """
+        Add text boxes next to each node showing their DOF values.
+        Skip fully fixed nodes, but show nodes with partial constraints or free nodes.
+        """
+        for node_coords, node_data in nodes.items():
+            node_id = node_data['node_id']
+            node_type = nodes_config[node_id]['type']
             
-            # Position text box offset from node
-            offset_x = 0.4  # Horizontal offset
-            offset_y = 0.3  # Vertical offset
-            
-            # Adjust offset based on node position to avoid overlaps
-            if node_coords[0] > 1.0:  # Nodes on the right side
-                offset_x = -1.5  # Move text to the left
-            if node_coords[1] > 1.0:  # Nodes above middle
-                offset_y = -0.7  # Move text below
-            
-            # Choose text box color based on node type
-            colors = {
-                'fixed': 'lightcoral',
-                'pin': 'lightblue', 
-                'free': 'lightgreen'
-            }
-            box_color = colors.get(node_data['type'], 'lightgray')
-            
-            # Add text box
-            ax.text(node_coords[0] + offset_x, node_coords[1] + offset_y, 
-                   text_content, fontsize=9, 
-                   bbox=dict(boxstyle='round,pad=0.5', facecolor=box_color, alpha=0.9),
-                   verticalalignment='top', fontfamily='monospace')
+            if node_data['dofs']:  # Only consider nodes with DOFs
+                # Skip fully fixed nodes (they have no interesting deflections to show)
+                if node_type == 'fixed':
+                    continue
+                
+                # For other node types, show textbox if there are any deflections (even small ones)
+                # Use a much smaller tolerance for "non-zero" check
+                non_zero_dofs = [dof for dof in node_data['dofs'] if not np.isclose(dof['value'], 0.0, atol=1e-15)]
+                
+                # Show all DOFs for non-fixed nodes, regardless of magnitude
+                display_dofs = node_data['dofs']  # Show all DOFs, not just non-zero ones
+                
+                if not display_dofs:
+                    continue
+
+                # Create text content
+                text_lines = [f"Node {node_id} ({node_type}):"]
+                text_lines.append("─" * 25)
+                
+                for dof in display_dofs:
+                    text_lines.append(f"{dof['name']}: {dof['value']:.3e} {dof['unit']}")
+                
+                text_content = "\n".join(text_lines)
+                
+                # Position text box offset from node
+                offset_x = 0.3
+                offset_y = 0.2
+                if node_coords[0] > 2.5:
+                    offset_x = -1.2
+                if node_coords[1] > 0:
+                    offset_y = -0.5
+                
+                ax.text(node_coords[0] + offset_x, node_coords[1] + offset_y, 
+                    text_content, fontsize=9, 
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgreen', alpha=0.8),
+                    verticalalignment='top', fontfamily='monospace')
+                
+                # Add a small circle to mark the node
+                ax.plot(node_coords[0], node_coords[1], 'ko', markersize=8, zorder=10)
+                ax.plot(node_coords[0], node_coords[1], 'wo', markersize=6, zorder=11)
 
     # PLOTTING WITH TOTAL STRUCTURAL DEFLECTIONS
-    def plot_deflected_shape_with_total_deflections(self, ax, node1XG, node1YG, node2XG, node2YG, 
+    def plot_deflected_shape_with_total_deflections(self, ax, start_node_coords, end_node_coords, 
                                                   total_structural_deflections, assembly_matrix, 
                                                   disp_mag, N_points, angle, element_name, show_values=True):
         # Extract element deflections from total structural deflections using assembly matrix
@@ -396,6 +410,10 @@ class FrameAnalysis:
                                          [0, 0, 0, 0, 0, 1]])
         
         element_deflections_local = transformation_matrix @ element_deflections_global
+        
+        # Extract node coordinates
+        node1XG, node1YG = start_node_coords[0], start_node_coords[1]
+        node2XG, node2YG = end_node_coords[0], end_node_coords[1]
         
         # Now plot the deflected shape using these deflections
         L = np.sqrt((node2XG - node1XG) ** 2 + (node2YG - node1YG) ** 2)
@@ -448,27 +466,14 @@ class FrameAnalysis:
         print("="*100)
         
         # Extract configuration
-        nodes_input = config['nodes']
-        nodes = self.parse_node_input(nodes_input)  # Parse compact format
         elements = config['elements']
         loads = config['loads']
         normal_forces = config['normal_forces']
         display_magnitude = config['display_magnitude']
         show_matrices = config['show_matrices']
         show_deflection_labels = config['show_deflection_labels']
-        validate_node_types = config.get('validate_node_types', False)
         
-        # Extract DOF definitions from config
-        dof_definitions = config.get('dof_definitions', [])
-        
-        # Validate node type assignments if requested
-        if validate_node_types and dof_definitions:
-            self.validate_node_dof_assignments(nodes, dof_definitions)
-        
-        # Update elements with node positions from nodes array
-        for elem in elements:
-            node1_idx, node2_idx = elem['node_indices']
-            elem['node_positions'] = [nodes[node1_idx]['position'], nodes[node2_idx]['position']]
+        constraints = self._process_nodes(config['nodes'])
         
         # Calculate element stiffness matrices
         results = {}
@@ -517,10 +522,22 @@ class FrameAnalysis:
                     load['magnitude'], elem['length'],
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
             elif load['type'] == 'PDL':
+                # Expect 'a' to be provided in the load dictionary
+                a = load.get('a', 0)
                 load_vector = self.build_PDL_global_forcing_vector(
+                    load['magnitude'], elem['length'], a,
+                    elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+            elif load['type'] == 'DAL':
+                load_vector = self.build_DAL_global_forcing_vector(
                     load['magnitude'], elem['length'],
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
-            
+            elif load['type'] == 'CAL':
+                # Expect 'a' to be provided in the load dictionary
+                a = load.get('a', 0)
+                load_vector = self.build_CAL_global_forcing_vector(
+                    load['magnitude'], elem['length'], a,
+                    elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+
             total_global_forcing_vector += load_vector
         
         # Solve for deflections
@@ -588,43 +605,65 @@ class FrameAnalysis:
         # Plot results
         fig, ax = plt.subplots(figsize=(14, 10))
         
-        # Plot support symbols first (so they appear behind elements)
-        self.plot_node_supports(ax, nodes)
-        
         # Plot each element's deflected shape using total structural deflections
         for i, elem in enumerate(elements, 1):
             elem_key = f'element_{i}'
-            node1_pos = elem['node_positions'][0]
-            node2_pos = elem['node_positions'][1]
+            
+            # Get node coordinates from the nodes configuration
+            start_node_id = elem['start_node']
+            end_node_id = elem['end_node']
+            start_node_coords = config['nodes'][start_node_id]['coords']
+            end_node_coords = config['nodes'][end_node_id]['coords']
             
             self.plot_deflected_shape_with_total_deflections(
-                ax, node1_pos[0], node1_pos[1], node2_pos[0], node2_pos[1],
+                ax, start_node_coords, end_node_coords,
                 total_structural_deflections, elem['assembly_matrix'], 
                 display_magnitude, 30, elem['angle'], f"Element {i}", False)
-        
-        # Extract node information and add DOF textboxes
-        if show_deflection_labels and dof_definitions:
-            node_dofs = self.extract_node_coordinates_and_dofs(nodes, dof_definitions, total_structural_deflections)
-            self.add_node_dof_textboxes(ax, node_dofs)
             
-            # Print to console as well
-            print("\nNODE DOF INFORMATION:")
-            print("="*50)
-            for node_coords, node_data in node_dofs.items():
-                print(f"\n{node_data['label']} at ({node_coords[0]:.1f}, {node_coords[1]:.1f}) - {node_data['type'].upper()} support:")
-                if node_data['dofs']:
-                    for dof in node_data['dofs']:
-                        print(f"  {dof['name']:15s}: {dof['value']:12.6e} {dof['unit']}")
-                else:
-                    print("  No DOFs assigned (Fully restrained)")
-            print()
+        # Extract node deflections using simplified approach
+        nodes_with_dofs = self.extract_node_coordinates_and_dofs(
+            config['nodes'], 
+            total_structural_deflections
+        )
+
+        # Add DOF textboxes to plot
+        self.add_node_dof_textboxes(ax, nodes_with_dofs, config['nodes'])
+
+        # Plot symbols for node types
+        for node_id, node in config['nodes'].items():
+            x, y = node['coords']
+            n_type = node['type']
+            
+            # Choose marker style based on type
+            if n_type == 'fixed':
+                marker = 's'  # square
+                color = 'red'
+            elif n_type == 'pinned':
+                marker = 'o'  # circle
+                color = 'blue'
+            elif n_type == 'roller_x' or n_type == 'roller_y':
+                marker = 'D'  # diamond
+                color = 'green'
+            elif n_type == 'free':
+                marker = '^'  # triangle
+                color = 'orange'
+            else:
+                marker = 'x'
+                color = 'black'
+            
+            ax.plot(x, y, marker=marker, color=color, markersize=12, label=f"Node {node_id} ({n_type})")
+
+        # Remove duplicate legend entries
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax.legend(by_label.values(), by_label.keys())
         
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
         ax.legend()
         ax.set_xlabel('X (m)')
         ax.set_ylabel('Y (m)')
-        ax.set_title(f'Frame Analysis with Node Support Types and DOF Information\n(Magnification Factor: {display_magnitude}x)')
+        ax.set_title(f'Frame Deflection Analysis with Node DOF Information\n(Magnification Factor: {display_magnitude}x)')
         plt.tight_layout()
         plt.show()
         

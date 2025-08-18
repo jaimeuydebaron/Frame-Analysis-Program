@@ -474,33 +474,46 @@ def main():
     
     # CONFIGURATION - EDIT THIS SECTION FOR YOUR PROBLEM
     config = {
-        # Element properties
+        # Element properties (you still define length, angle, assembly matrix)
         'elements': [
             {  # Element 1
-                'length': 3,                    # m
-                'second_moment_of_area': 1e-6,  # m^4
-                'area': 1e-4,                   # m^2
+                'length': 4,                    # m
+                'second_moment_of_area': 5e-6,  # m^4
+                'area': 2e-4,                   # m^2
                 'youngs_modulus': 200e9,        # Pa
                 'angle': 0,                     # degrees
-                'node_positions': [np.array([0, 0]), np.array([3, 0])],  # Global coordinates
+                'node_positions': [np.array([0, 0]), np.array([4, 0])],  # Global coordinates
                 'assembly_matrix': np.array([[0, 0, 0, 1, 0, 0],
-                                           [0, 0, 0, 0, 0, 1],
-                                           [0, 0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0, 0]])
+                                             [0, 0, 0, 0, 0, 1],
+                                             [0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0],])
             },
             {  # Element 2
-                'length': 2,                    # m
-                'second_moment_of_area': 1e-6,  # m^4
-                'area': 1e-4,                   # m^2
+                'length': 5,                    # m
+                'second_moment_of_area': 5e-6,  # m^4
+                'area': 2e-4,                   # m^2
                 'youngs_modulus': 200e9,        # Pa
-                'angle': 0,                     # degrees
-                'node_positions': [np.array([3, 0]), np.array([5, 0])],  # Global coordinates
+                'angle': 36.87,                     # degrees
+                'node_positions': [np.array([0, 0]), np.array([4, 3])],  # Global coordinates
+                'assembly_matrix': np.array([[0, 0, 0, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 0],   
+                                             [0, 0, 0, 1, 0, 0],
+                                             [0, 0, 0, 0, 1, 0],
+                                             [0, 0, 0, 0, 0, 1]])
+            },
+            {  # Element 3
+                'length': 3,                    # m
+                'second_moment_of_area': 5e-6,  # m^4
+                'area': 2e-4,                   # m^2
+                'youngs_modulus': 200e9,        # Pa
+                'angle': 90,                     # degrees
+                'node_positions': [np.array([4, 0]), np.array([4, 3])],  # Global coordinates
                 'assembly_matrix': np.array([[1, 0, 0, 0, 0, 0],
-                                           [0, 0, 1, 0, 0, 0],   
-                                           [0, 0, 0, 1, 0, 0],
-                                           [0, 0, 0, 0, 1, 0],
-                                           [0, 0, 0, 0, 0, 1]])
+                                             [0, 0, 1, 0, 0, 0],   
+                                             [0, 0, 0, 1, 0, 0],
+                                             [0, 0, 0, 0, 1, 0],
+                                             [0, 0, 0, 0, 0, 1]])
             }
         ],
         
@@ -525,7 +538,7 @@ def main():
         'normal_forces': [0, 0, 25000, -10000, 0],  # N, N⋅m
         
         # Display options
-        'display_magnitude': 10,        # Magnification factor for deflection plot
+        'display_magnitude': 100,        # Magnification factor for deflection plot
         'show_vertical_matrices': True,  # True for vertical matrix display, False for standard
         'show_deflection_labels': True   # True to show deflection values on plot
     }
