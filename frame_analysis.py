@@ -5,26 +5,7 @@ class FrameAnalysis:
     def __init__(self):
         self.np_precision = 4
         np.set_printoptions(precision=self.np_precision, suppress=True)
-
-    def _process_nodes(self, nodes):
-        constraints = {}
-        for node_id, node in nodes.items():
-            n = (node_id - 1) * 3
-            if node['type'] == 'fixed':
-                constraints.update({n: 0.0, n+1: 0.0, n+2: 0.0})
-            elif node['type'] == 'roller_x':
-                constraints.update({n+1: 0.0})
-            elif node['type'] == 'roller_y':
-                constraints.update({n: 0.0})
-            elif node['type'] == 'pinned':
-                constraints.update({n: 0.0, n+1: 0.0})
-            elif node['type'] == 'free':
-                pass
-            else:
-                raise ValueError(f"Unknown node type: {node['type']}")
-        return constraints
    
-    
     # CORE CALCULATION FUNCTIONS
     def calc_local_coordinates_element_stiffness_matrix(self, youngs_modulus, area, second_moment_of_area, length):
         constant = (youngs_modulus * second_moment_of_area) / length ** 3
@@ -80,7 +61,7 @@ class FrameAnalysis:
         return global_stiffness @ global_structural_deflections
 
     # LOAD FUNCTIONS
-    def build_UDL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction='local'):
+    def build_UDL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction):
         """
         Build global forcing vector for a UDL.
         
@@ -90,6 +71,9 @@ class FrameAnalysis:
             assembly_matrix: Element assembly matrix
             transformation_matrix: Element transformation matrix
             direction: 'local' (perpendicular to element) or 'vertical' (vertically downward)
+        
+        Returns:
+            tuple: (UDL_global_forcing_vector, equivalent_forcing_element_coordinates)
         """
         if direction == 'local':
             # Original implementation - load acts perpendicular to element
@@ -101,8 +85,8 @@ class FrameAnalysis:
                                                             -w_bar * L ** 2 / 12])
         elif direction == 'vertical':
             # Extract angle from transformation matrix
-            angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
-            
+            angle_rad = - 1 * np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+
             # Decompose vertical load into local components
             w_transverse = w_bar * np.cos(angle_rad)  # Perpendicular to element
             w_axial = w_bar * np.sin(angle_rad)       # Along element axis
@@ -119,9 +103,9 @@ class FrameAnalysis:
         
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         UDL_global_forcing_vector = assembly_matrix @ big_F
-        return UDL_global_forcing_vector
+        return UDL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
 
-    def build_LVL_peakXZERO_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction='local'):
+    def build_LVL_peakXZERO_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix):
         """
         Build global forcing vector for a linearly varying load (peak at x=0, zero at x=L).
         """
@@ -135,9 +119,9 @@ class FrameAnalysis:
         
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         LVL_peakXZERO_global_forcing_vector = assembly_matrix @ big_F
-        return LVL_peakXZERO_global_forcing_vector
+        return LVL_peakXZERO_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
 
-    def build_LVL_peakXL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix, direction='local'):
+    def build_LVL_peakXL_global_forcing_vector(self, w_bar, L, assembly_matrix, transformation_matrix):
         """
         Build global forcing vector for a linearly varying load (zero at x=0, peak at x=L).
         """
@@ -151,9 +135,9 @@ class FrameAnalysis:
         
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         LVL_peakXL_global_forcing_vector = assembly_matrix @ big_F
-        return LVL_peakXL_global_forcing_vector
+        return LVL_peakXL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
 
-    def build_PDL_global_forcing_vector(self, P, L, a, assembly_matrix, transformation_matrix, direction='local'):
+    def build_PDL_global_forcing_vector(self, P, L, a, assembly_matrix, transformation_matrix, direction):
         """
         Build global forcing vector for a point load at mid-span.
         """
@@ -185,7 +169,7 @@ class FrameAnalysis:
         
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         PDL_global_forcing_vector = assembly_matrix @ big_F
-        return PDL_global_forcing_vector
+        return PDL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
 
     def build_DAL_global_forcing_vector(self, P, L, assembly_matrix, transformation_matrix):
         equivalent_forcing_element_coordinates = np.array([P * L / 2,
@@ -196,7 +180,7 @@ class FrameAnalysis:
                                                         0])
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         DAL_global_forcing_vector = assembly_matrix @ big_F
-        return DAL_global_forcing_vector
+        return DAL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
     
     def build_CAL_global_forcing_vector(self, P, L, a, assembly_matrix, transformation_matrix):
         equivalent_forcing_element_coordinates = np.array([P * (1 - a / L),
@@ -207,35 +191,153 @@ class FrameAnalysis:
                                                         0])
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         CAL_global_forcing_vector = assembly_matrix @ big_F
-        return CAL_global_forcing_vector
+        return CAL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
 
     # ENHANCED PRINTING FUNCTIONS
     def find_common_factor(self, matrix):
-        """Find common factor to simplify matrix display"""
+        """Find common factor to simplify matrix display using engineering increments (10^3)"""
+        # Handle edge cases
+        if matrix.size == 0:
+            return 1
+        
         non_zero_values = matrix[matrix != 0]
         if len(non_zero_values) == 0:
             return 1
         
-        # Check for common powers of 10
+        # Handle very small values that might be numerical noise
         abs_values = np.abs(non_zero_values)
-        min_abs = np.min(abs_values)
+        significant_values = abs_values[abs_values > 1e-15]
+        if len(significant_values) == 0:
+            return 1
         
-        # Find the largest power of 10 that divides into most values
-        for power in range(-12, 13):
-            factor = 10**power
-            if min_abs >= factor:
-                # Check if this factor simplifies most values significantly
-                simplified = non_zero_values / factor
-                if np.all(np.abs(simplified) >= 0.1) and np.all(np.abs(simplified) < 10000):
-                    return factor
-        return 1
+        # Use median for more robust factor selection
+        median_val = np.median(significant_values)
+        
+        # Engineering powers of 10^3: ..., 1e-6, 1e-3, 1e0, 1e3, 1e6, 1e9, ...
+        # This gives us: micro, milli, base, kilo, mega, giga units
+        engineering_powers = range(-6, 10)  # Covers 1e-6 to 1e9
+        
+        best_factor = 1
+        best_score = float('inf')
+        
+        for power in engineering_powers:
+            factor = 10**(power * 3)  # 10^(-6), 10^(-3), 10^0, 10^3, 10^6, etc.
+            
+            simplified = significant_values / factor
+            
+            # Calculate score: prefer factors that put most values in range [0.1, 999]
+            # This gives nice readable numbers for engineering
+            in_range = np.sum((simplified >= 0.1) & (simplified <= 999))
+            total_values = len(simplified)
+            
+            # Bonus for values in ideal engineering range [1, 99]
+            in_ideal_range = np.sum((simplified >= 1) & (simplified <= 99))
+            
+            # Score: lower is better
+            score = (total_values - in_range) * 10 + (total_values - in_ideal_range)
+            
+            # Heavy penalty for factors that create numbers outside engineering comfort zone
+            if np.any(simplified > 9999) or np.any(simplified < 0.001):
+                score += 1000
+            
+            if score < best_score:
+                best_score = score
+                best_factor = factor
+        
+        return best_factor
+
+    def get_engineering_units(self, base_units, factor):
+        """Convert base units to engineering units based on the factor"""
+        # Define unit mappings for different factors
+        unit_mappings = {
+            # Force units
+            "[N]": {
+                1e-3: "[mN]",
+                1: "[N]", 
+                1e3: "[kN]",
+                1e6: "[MN]"
+            },
+            "[N/m]": {
+                1e-3: "[mN/m]",
+                1: "[N/m]",
+                1e3: "[kN/m]", 
+                1e6: "[MN/m]"
+            },
+            "[N⋅m]": {
+                1e-3: "[mN⋅m]",
+                1: "[N⋅m]",
+                1e3: "[kN⋅m]",
+                1e6: "[MN⋅m]"
+            },
+            "[N⋅m/rad]": {
+                1e-3: "[mN⋅m/rad]",
+                1: "[N⋅m/rad]",
+                1e3: "[kN⋅m/rad]",
+                1e6: "[MN⋅m/rad]"
+            },
+            "[N/m, N⋅m/rad]": {
+                1e-3: "[mN/m, mN⋅m/rad]",
+                1: "[N/m, N⋅m/rad]",
+                1e3: "[kN/m, kN⋅m/rad]",
+                1e6: "[MN/m, MN⋅m/rad]"
+            },
+            "[N, N⋅m]": {
+                1e-3: "[mN, mN⋅m]",
+                1: "[N, N⋅m]",
+                1e3: "[kN, kN⋅m]",
+                1e6: "[MN, MN⋅m]"
+            },
+            # Length units
+            "[m]": {
+                1e-6: "[μm]",
+                1e-3: "[mm]",
+                1: "[m]",
+                1e3: "[km]"
+            },
+            "[m, rad]": {
+                1e-6: "[μm, μrad]",
+                1e-3: "[mm, mrad]", 
+                1: "[m, rad]",
+                1e3: "[km, krad]"
+            },
+            # Dimensionless
+            "[-]": {
+                1: "[-]"  # Transformation matrices stay dimensionless
+            }
+        }
+        
+        # Return the engineering unit if mapping exists, otherwise return original
+        if base_units in unit_mappings and factor in unit_mappings[base_units]:
+            return unit_mappings[base_units][factor]
+        else:
+            return base_units
 
     def print_matrix_vertical(self, name, matrix, units=""):
         factor = self.find_common_factor(matrix)
+        engineering_units = self.get_engineering_units(units, factor)
         factor_text = f" (×{factor:.0e})" if factor != 1 else ""
         
-        print(f"\n{name}{factor_text} {units}:")
-        print("-" * (len(name) + len(factor_text) + len(units) + 1))
+        print(f"\n{name}{factor_text} {engineering_units}:")
+        print("-" * (len(name) + len(factor_text) + len(engineering_units) + 1))
+        
+        simplified_matrix = matrix / factor
+        
+        if matrix.ndim == 1:
+            # Print vectors vertically with indices
+            for i, val in enumerate(simplified_matrix):
+                print(f"  [{i + 1:2d}]: {val:12.4f}")
+        else:
+            # Print matrices in standard bracket format
+            print(np.array_str(simplified_matrix, precision=4, suppress_small=True))
+        print()
+
+    def print_matrix_standard(self, name, matrix, units=""):
+        factor = self.find_common_factor(matrix)
+        engineering_units = self.get_engineering_units(units, factor)
+        factor_text = f" (×{factor:.0e})" if factor != 1 else ""
+        
+        print(f"\n{name}{factor_text} {engineering_units}:")
+        print("-" * (len(name) + len(factor_text) + len(engineering_units) + 1))
         
         simplified_matrix = matrix / factor
         
@@ -246,7 +348,7 @@ class FrameAnalysis:
         else:
             # Print matrices in standard bracket format
             print(np.array_str(simplified_matrix, precision=4, suppress_small=True))
-        print()
+        print()                           
 
     def print_matrix_standard(self, name, matrix, units=""):
         factor = self.find_common_factor(matrix)
@@ -458,6 +560,18 @@ class FrameAnalysis:
         ax.text(undeflected_XG[mid_idx], undeflected_YG[mid_idx] + 0.1, element_name, 
                fontsize=10, ha='center', weight='bold')
 
+    def get_load_type_label(self, load_type):
+        """Get the proper label for each load type"""
+        load_labels = {
+            'UDL': 'UDL',
+            'LVL_peakXL': 'LVL (peak at x=L)',
+            'LVL_peakXZERO': 'LVL (peak at x=0)',
+            'PDL': 'PDL',
+            'DAL': 'DAL',
+            'CAL': 'CAL'
+        }
+        return load_labels.get(load_type, load_type)
+
     def run_analysis(self, config):
         """Main analysis function with configuration dictionary"""
         
@@ -471,13 +585,13 @@ class FrameAnalysis:
         normal_forces = config['normal_forces']
         display_magnitude = config['display_magnitude']
         show_matrices = config['show_matrices']
-        show_deflection_labels = config['show_deflection_labels']
-        
-        constraints = self._process_nodes(config['nodes'])
         
         # Calculate element stiffness matrices
         results = {}
         total_global_forcing_vector = np.array(normal_forces, dtype=float)
+        
+        # Store load information for each element
+        element_loads = {i: [] for i in range(1, len(elements) + 1)}
         
         for i, elem in enumerate(elements, 1):
             elem_key = f'element_{i}'
@@ -503,42 +617,78 @@ class FrameAnalysis:
             else:
                 total_global_stiffness_matrix += global_stiffness_matrix
         
-        # Add distributed loads
+        # Add distributed loads and store forcing vectors
+        all_load_vectors = []  # Store all load vectors for structure level printing
+        
         for load in loads:
             elem_idx = load['element'] - 1
             elem = elements[elem_idx]
             elem_key = f'element_{load["element"]}'
             
+            load_info = {
+                'type': load['type'],
+                'magnitude': load['magnitude'],
+                'element': load['element']
+            }
+            
             if load['type'] == 'UDL':
-                load_vector = self.build_UDL_global_forcing_vector(
+                direction = load.get('direction', 'local')
+                load_vector, equiv_local, equiv_global = self.build_UDL_global_forcing_vector(
                     load['magnitude'], elem['length'], 
-                    elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                    elem['assembly_matrix'], results[elem_key]['transformation_matrix'], direction)
+                load_info['description'] = f"Uniformly Distributed Load: {load['magnitude']} N/m (direction: {direction})"
+                load_info['direction'] = direction
+                
             elif load['type'] == 'LVL_peakXL':
-                load_vector = self.build_LVL_peakXL_global_forcing_vector(
+                load_vector, equiv_local, equiv_global = self.build_LVL_peakXL_global_forcing_vector(
                     load['magnitude'], elem['length'],
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                load_info['description'] = f"Linearly Varying Load (peak at x=L): {load['magnitude']} N/m"
+                
             elif load['type'] == 'LVL_peakXZERO':
-                load_vector = self.build_LVL_peakXZERO_global_forcing_vector(
+                load_vector, equiv_local, equiv_global = self.build_LVL_peakXZERO_global_forcing_vector(
                     load['magnitude'], elem['length'],
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                load_info['description'] = f"Linearly Varying Load (peak at x=0): {load['magnitude']} N/m"
+                
             elif load['type'] == 'PDL':
-                # Expect 'a' to be provided in the load dictionary
-                a = load.get('a', 0)
-                load_vector = self.build_PDL_global_forcing_vector(
+                direction = load.get('direction', 'local')
+                a = load.get('a', elem['length']/2)  # Default to mid-span
+                load_vector, equiv_local, equiv_global = self.build_PDL_global_forcing_vector(
                     load['magnitude'], elem['length'], a,
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                load_info['description'] = f"Point Load: {load['magnitude']} N at x={a} m"
+                load_info['a'] = a
+                
             elif load['type'] == 'DAL':
-                load_vector = self.build_DAL_global_forcing_vector(
+                load_vector, equiv_local, equiv_global = self.build_DAL_global_forcing_vector(
                     load['magnitude'], elem['length'],
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                load_info['description'] = f"Distributed Axial Load: {load['magnitude']} N/m"
+                
             elif load['type'] == 'CAL':
-                # Expect 'a' to be provided in the load dictionary
-                a = load.get('a', 0)
-                load_vector = self.build_CAL_global_forcing_vector(
+                a = load.get('a', elem['length']/2)  # Default to mid-span
+                load_vector, equiv_local, equiv_global = self.build_CAL_global_forcing_vector(
                     load['magnitude'], elem['length'], a,
                     elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                load_info['description'] = f"Concentrated Axial Load: {load['magnitude']} N at x={a} m"
+                load_info['a'] = a
 
+            # Store the forcing vectors in the load info
+            load_info['equiv_local'] = equiv_local
+            load_info['equiv_global'] = equiv_global
+            load_info['global_vector'] = load_vector
+            
+            # Add to element loads and all loads
+            element_loads[load['element']].append(load_info)
+            all_load_vectors.append(load_info)
+            
             total_global_forcing_vector += load_vector
+        
+        # Store load information in results for printing
+        for i in range(1, len(elements) + 1):
+            elem_key = f'element_{i}'
+            results[elem_key]['loads'] = element_loads[i]
         
         # Solve for deflections
         total_structural_deflections = self.calc_structural_deflections(
@@ -575,13 +725,27 @@ class FrameAnalysis:
             print(f"ELEMENT {i}")
             print(f"{'-'*60}")
             
-            print_func(f"Local stiffness matrix [k]_local_{i}", results[elem_key]['local_stiffness'], "[N/m, N⋅m/rad]")
-            print_func(f"Global stiffness matrix [k]_global_{i}", results[elem_key]['global_stiffness'], "[N/m, N⋅m/rad]")
-            print_func(f"Transformation matrix [T]_{i}", results[elem_key]['transformation_matrix'], "[-]")
-            print_func(f"Global element deflections {{d}}_global_{i}", results[elem_key]['global_deflections'], "[m, rad]")
-            print_func(f"Local element deflections {{d}}_local_{i}", results[elem_key]['local_deflections'], "[m, rad]")
-            print_func(f"Element nodal forces LOCAL {{F}}_local_{i}", results[elem_key]['local_forces'], "[N, N⋅m]")
-            print_func(f"Element nodal forces GLOBAL {{F}}_global_{i}", results[elem_key]['global_forces'], "[N, N⋅m]")
+            print_func(f"LOCAL stiffness matrix K_Local_{i}", results[elem_key]['local_stiffness'], "[N/m, N⋅m/rad]")
+            print_func(f"GLOBAL (coordinates) stiffness matrix K_Global_{i}", results[elem_key]['global_stiffness'], "[N/m, N⋅m/rad]")
+            print_func(f"Transformation matrix T_{i}", results[elem_key]['transformation_matrix'], "[-]")
+            print_func(f"GLOBAL element deflections d_Global_{i}", results[elem_key]['global_deflections'], "[m, rad]")
+            print_func(f"LOCAL element deflections d_Local_{i}", results[elem_key]['local_deflections'], "[m, rad]")
+            print_func(f"Element nodal forces LOCAL F_Local_{i}", results[elem_key]['local_forces'], "[N, N⋅m]")
+            print_func(f"Element nodal forces GLOBAL F_Global_{i}", results[elem_key]['global_forces'], "[N, N⋅m]")
+
+            # Print load equivalent forcing vectors at the very end of each element section
+            if results[elem_key]['loads']:
+                print(f"\n{'EXTRA FORCING VECTORS FOR ELEMENT ' + str(i)}")
+                print(f"{'-'*60}")
+                for j, load_info in enumerate(results[elem_key]['loads'], 1):
+                    load_label = self.get_load_type_label(load_info['type'])
+                    print(f"\n{load_label} Load {j}: {load_info['description']}")
+                    print_func(f"Equivalent LOCAL forces f_Local_equiv_{load_label}_{i}_{j}", 
+                              load_info['equiv_local'], "[N, N⋅m]")
+                    print_func(f"Equivalent GLOBAL forces F_Global_equiv_{load_label}_{i}_{j}", 
+                              load_info['equiv_global'], "[N, N⋅m]")
+                    print_func(f"GLOBAL forcing vector Q_Global_vector_{load_label}_{i}_{j}", 
+                              load_info['global_vector'], "[N, N⋅m]")
         
         # Structure level results
         print(f"\n{'-'*60}")
@@ -591,12 +755,23 @@ class FrameAnalysis:
         # Print individual element contributions to global stiffness matrix
         for i, elem in enumerate(elements, 1):
             elem_key = f'element_{i}'
-            print_func(f"Global stiffness matrix (Element {i} contribution) [K]_{i}", 
+            print_func(f"Element {i} stiffness matrix contribution) [K]_{i}", 
                       results[elem_key]['global_stiffness_matrix'], "[N/m, N⋅m/rad]")
         
         print_func("TOTAL global stiffness matrix [K]_total", total_global_stiffness_matrix, "[N/m, N⋅m/rad]")
+        
+        # Print all load contributions at structure level
+        if all_load_vectors:
+            print(f"\n{'STRUCTURE LEVEL LOAD CONTRIBUTIONS':^60}")
+            print(f"{'-'*60}")
+            for j, load_info in enumerate(all_load_vectors, 1):
+                load_label = self.get_load_type_label(load_info['type'])
+                print(f"\n{load_label} Structure Load {j} (Element {load_info['element']}): {load_info['description']}")
+                print_func(f"GLOBAL forcing vector contribution Q_{load_label}_{j}", 
+                          load_info['global_vector'], "[N, N⋅m]")
+        
         print_func("Total structural deflections {d}_total", total_structural_deflections, "[m, rad]")
-        print_func("Global forcing vector {F}", total_global_forcing_vector, "[N, N⋅m]")
+        print_func("TOTAL global forcing vector {F}_total", total_global_forcing_vector, "[N, N⋅m]")
         
         print("\n" + "="*100)
         print("                                END OF RESULTS")
