@@ -6,6 +6,138 @@ class FrameAnalysis:
         self.np_precision = 4
         np.set_printoptions(precision=self.np_precision, suppress=True)
     
+    def parse_node_input(self, nodes_input):
+        """
+        Parse compact node input format into full node dictionaries.
+        Input format: [x, y, 'support_type', 'label'] or [x, y, 'support_type']
+        """
+        nodes = []
+        for i, node_data in enumerate(nodes_input):
+            if len(node_data) == 3:
+                x, y, support_type = node_data
+                label = f'Node {i + 1}'
+            elif len(node_data) == 4:
+                x, y, support_type, label = node_data
+            else:
+                raise ValueError(f"Node {i + 1}: Expected format [x, y, 'support_type'] or [x, y, 'support_type', 'label']")
+            
+            nodes.append({
+                'position': np.array([x, y]),
+                'type': support_type,
+                'label': label
+            })
+        
+        return nodes
+    def get_expected_dofs_for_node_type(self, node_type):
+        """Return expected DOFs for each node type"""
+        dof_types = {
+            'fixed': [],  # No DOFs - all restrained
+            'pin': ['translation'],  # Only rotational DOF (no translations)
+            'free': ['translation', 'rotation']  # All DOFs available
+        }
+        return dof_types.get(node_type, ['translation', 'rotation'])
+    
+    def validate_node_dof_assignments(self, nodes, dof_definitions):
+        """Validate that DOF assignments match node support types"""
+        print("\nNODE TYPE VALIDATION:")
+        print("="*60)
+        
+        validation_results = []
+        
+        for node_idx, node in enumerate(nodes):
+            node_type = node['type']
+            node_label = node.get('label', f'Node {node_idx + 1}')
+            expected_dof_types = self.get_expected_dofs_for_node_type(node_type)
+            
+            # Find DOFs assigned to this node
+            assigned_dofs = [dof for dof in dof_definitions if dof.get('node_index') == node_idx]
+            assigned_dof_types = [dof['type'] for dof in assigned_dofs]
+            
+            print(f"\n{node_label} ({node_type.upper()} support):")
+            print(f"  Position: ({node['position'][0]:.1f}, {node['position'][1]:.1f})")
+            print(f"  Expected DOF types: {expected_dof_types if expected_dof_types else 'None (fully restrained)'}")
+            print(f"  Assigned DOF types: {assigned_dof_types if assigned_dof_types else 'None'}")
+            
+            # Check for inconsistencies
+            issues = []
+            
+            if node_type == 'fixed' and assigned_dofs:
+                issues.append("FIXED node should have no DOFs assigned")
+            
+            elif node_type == 'pin':
+                # Pin should only have rotation DOF, no translations
+                if 'translation' in assigned_dof_types:
+                    issues.append("PIN node should not have translation DOFs")
+                if 'rotation' not in assigned_dof_types:
+                    issues.append("PIN node should have rotation DOF")
+            
+            elif node_type == 'free':
+                # Free node should have all DOF types
+                if 'translation' not in assigned_dof_types:
+                    issues.append("FREE node should have translation DOFs")
+                if 'rotation' not in assigned_dof_types:
+                    issues.append("FREE node should have rotation DOF")
+            
+            if issues:
+                print(f"  ⚠️  VALIDATION ISSUES:")
+                for issue in issues:
+                    print(f"     - {issue}")
+                validation_results.append({
+                    'node': node_label,
+                    'status': 'ISSUES',
+                    'issues': issues
+                })
+            else:
+                print(f"  ✅ Validation passed")
+                validation_results.append({
+                    'node': node_label,
+                    'status': 'PASSED',
+                    'issues': []
+                })
+        
+        # Summary
+        passed = sum(1 for result in validation_results if result['status'] == 'PASSED')
+        total = len(validation_results)
+        print(f"\nValidation Summary: {passed}/{total} nodes passed validation")
+        
+        if passed != total:
+            print("\n⚠️  Please review the issues above to ensure your model is correct!")
+        
+        return validation_results
+    
+    def plot_node_supports(self, ax, nodes):
+        """Add visual indicators for different support types"""
+        support_symbols = {
+            'fixed': {'marker': 's', 'color': 'red', 'size': 120, 'label': 'Fixed Support'},
+            'pin': {'marker': '^', 'color': 'blue', 'size': 100, 'label': 'Pin Support'},
+            'free': {'marker': 'o', 'color': 'green', 'size': 80, 'label': 'Free Node'}
+        }
+        
+        # Track which support types we've plotted for legend
+        plotted_types = set()
+        
+        for node in nodes:
+            pos = node['position']
+            node_type = node['type']
+            symbol = support_symbols[node_type]
+            
+            # Plot support symbol
+            ax.scatter(pos[0], pos[1], 
+                      marker=symbol['marker'], 
+                      c=symbol['color'], 
+                      s=symbol['size'],
+                      alpha=0.7, 
+                      edgecolors='black',
+                      linewidth=2,
+                      zorder=15,
+                      label=symbol['label'] if node_type not in plotted_types else "")
+            
+            plotted_types.add(node_type)
+            
+            # Add node label
+            ax.text(pos[0], pos[1] - 0.15, node.get('label', ''), 
+                   fontsize=10, ha='center', weight='bold')
+    
     # CORE CALCULATION FUNCTIONS
     def calc_local_coordinates_element_stiffness_matrix(self, youngs_modulus, area, second_moment_of_area, length):
         constant = (youngs_modulus * second_moment_of_area) / length ** 3
@@ -162,99 +294,88 @@ class FrameAnalysis:
             print(np.array_str(simplified_matrix, precision=4, suppress_small=True))
         print()
 
-    def extract_node_coordinates_and_dofs(self, elements, dof_definitions, total_structural_deflections):
+    def extract_node_coordinates_and_dofs(self, nodes, dof_definitions, total_structural_deflections):
         """
-        Extract unique node coordinates and their corresponding DOFs from elements.
+        Extract node coordinates and their corresponding DOFs from nodes and dof_definitions.
         Returns a dictionary mapping node coordinates to their DOF information.
         """
-        nodes = {}
+        node_dofs = {}
         
-        for elem in elements:
-            node1_pos = tuple(elem['node_positions'][0])  # Convert to tuple for dict key
-            node2_pos = tuple(elem['node_positions'][1])
+        for node_idx, node in enumerate(nodes):
+            node_pos = tuple(node['position'])  # Convert to tuple for dict key
+            node_type = node['type']
+            node_label = node.get('label', f'Node {node_idx + 1}')
             
-            # Initialize nodes if not seen before
-            if node1_pos not in nodes:
-                nodes[node1_pos] = {'dofs': []}
-            if node2_pos not in nodes:
-                nodes[node2_pos] = {'dofs': []}
+            node_dofs[node_pos] = {
+                'dofs': [],
+                'type': node_type,
+                'label': node_label,
+                'index': node_idx
+            }
         
-        # Map DOFs to nodes based on naming convention
+        # Map DOFs to nodes based on node_index in dof_definitions
         for dof_idx, dof_def in enumerate(dof_definitions):
             if dof_idx < len(total_structural_deflections):
                 dof_name = dof_def['name']
                 dof_type = dof_def['type']
                 dof_value = total_structural_deflections[dof_idx]
+                node_index = dof_def.get('node_index', 0)
                 
-                # Try to extract node information from DOF name
-                # Expected format: "Node1_ux", "Node2_ry", etc.
-                if 'Node' in dof_name:
-                    try:
-                        # Extract node number from DOF name
-                        node_part = dof_name.split('_')[0]  # Gets "Node1", "Node2", etc.
-                        node_num = int(node_part.replace('Node', ''))
-                        
-                        # Map node number to actual coordinates
-                        node_coords = list(nodes.keys())
-                        if node_num <= len(node_coords):
-                            target_node = node_coords[node_num - 1]  # Node1 -> index 0, etc.
-                            
-                            unit = "[m]" if dof_type == 'translation' else "[rad]" if dof_type == 'rotation' else "[?]"
-                            
-                            nodes[target_node]['dofs'].append({
-                                'name': dof_name,
-                                'value': dof_value,
-                                'unit': unit,
-                                'dof_idx': dof_idx
-                            })
-                    except (ValueError, IndexError):
-                        # If parsing fails, try to assign to first available node
-                        if nodes:
-                            first_node = list(nodes.keys())[0]
-                            unit = "[m]" if dof_type == 'translation' else "[rad]" if dof_type == 'rotation' else "[?]"
-                            nodes[first_node]['dofs'].append({
-                                'name': dof_name,
-                                'value': dof_value,
-                                'unit': unit,
-                                'dof_idx': dof_idx
-                            })
+                # Find the node position for this node index
+                if node_index < len(nodes):
+                    node_pos = tuple(nodes[node_index]['position'])
+                    unit = "[m]" if dof_type == 'translation' else "[rad]" if dof_type == 'rotation' else "[?]"
+                    
+                    node_dofs[node_pos]['dofs'].append({
+                        'name': dof_name,
+                        'value': dof_value,
+                        'unit': unit,
+                        'dof_idx': dof_idx
+                    })
         
-        return nodes
+        return node_dofs
 
-    def add_node_dof_textboxes(self, ax, nodes):
+    def add_node_dof_textboxes(self, ax, node_dofs):
         """
-        Add text boxes next to each node showing their DOF values.
+        Add text boxes next to each node showing their DOF values and support type.
         """
-        for node_coords, node_data in nodes.items():
-            if node_data['dofs']:  # Only add textbox if node has DOFs
-                # Create text content
-                text_lines = [f"Node at ({node_coords[0]:.1f}, {node_coords[1]:.1f}):"]
-                text_lines.append("─" * 25)
-                
+        for node_coords, node_data in node_dofs.items():
+            # Create text content
+            text_lines = [f"{node_data['label']} ({node_data['type'].upper()})"]
+            text_lines.append(f"Position: ({node_coords[0]:.1f}, {node_coords[1]:.1f})")
+            text_lines.append("─" * 30)
+            
+            if node_data['dofs']:
                 for dof in node_data['dofs']:
                     text_lines.append(f"{dof['name']}: {dof['value']:.3e} {dof['unit']}")
-                
-                text_content = "\n".join(text_lines)
-                
-                # Position text box offset from node
-                offset_x = 0.3  # Horizontal offset
-                offset_y = 0.2  # Vertical offset
-                
-                # Adjust offset based on node position to avoid overlaps
-                if node_coords[0] > 2.5:  # Nodes on the right side
-                    offset_x = -1.2  # Move text to the left
-                if node_coords[1] > 0:  # Nodes above origin
-                    offset_y = -0.5  # Move text below
-                
-                # Add text box
-                ax.text(node_coords[0] + offset_x, node_coords[1] + offset_y, 
-                       text_content, fontsize=9, 
-                       bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgreen', alpha=0.8),
-                       verticalalignment='top', fontfamily='monospace')
-                
-                # Add a small circle to mark the node
-                ax.plot(node_coords[0], node_coords[1], 'ko', markersize=8, zorder=10)
-                ax.plot(node_coords[0], node_coords[1], 'wo', markersize=6, zorder=11)
+            else:
+                text_lines.append("No DOFs (Fully Restrained)")
+            
+            text_content = "\n".join(text_lines)
+            
+            # Position text box offset from node
+            offset_x = 0.4  # Horizontal offset
+            offset_y = 0.3  # Vertical offset
+            
+            # Adjust offset based on node position to avoid overlaps
+            if node_coords[0] > 1.0:  # Nodes on the right side
+                offset_x = -1.5  # Move text to the left
+            if node_coords[1] > 1.0:  # Nodes above middle
+                offset_y = -0.7  # Move text below
+            
+            # Choose text box color based on node type
+            colors = {
+                'fixed': 'lightcoral',
+                'pin': 'lightblue', 
+                'free': 'lightgreen'
+            }
+            box_color = colors.get(node_data['type'], 'lightgray')
+            
+            # Add text box
+            ax.text(node_coords[0] + offset_x, node_coords[1] + offset_y, 
+                   text_content, fontsize=9, 
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor=box_color, alpha=0.9),
+                   verticalalignment='top', fontfamily='monospace')
 
     # PLOTTING WITH TOTAL STRUCTURAL DEFLECTIONS
     def plot_deflected_shape_with_total_deflections(self, ax, node1XG, node1YG, node2XG, node2YG, 
@@ -327,15 +448,27 @@ class FrameAnalysis:
         print("="*100)
         
         # Extract configuration
+        nodes_input = config['nodes']
+        nodes = self.parse_node_input(nodes_input)  # Parse compact format
         elements = config['elements']
         loads = config['loads']
         normal_forces = config['normal_forces']
         display_magnitude = config['display_magnitude']
         show_matrices = config['show_matrices']
         show_deflection_labels = config['show_deflection_labels']
+        validate_node_types = config.get('validate_node_types', False)
         
-        # NEW: Extract DOF definitions from config
+        # Extract DOF definitions from config
         dof_definitions = config.get('dof_definitions', [])
+        
+        # Validate node type assignments if requested
+        if validate_node_types and dof_definitions:
+            self.validate_node_dof_assignments(nodes, dof_definitions)
+        
+        # Update elements with node positions from nodes array
+        for elem in elements:
+            node1_idx, node2_idx = elem['node_indices']
+            elem['node_positions'] = [nodes[node1_idx]['position'], nodes[node2_idx]['position']]
         
         # Calculate element stiffness matrices
         results = {}
@@ -455,6 +588,9 @@ class FrameAnalysis:
         # Plot results
         fig, ax = plt.subplots(figsize=(14, 10))
         
+        # Plot support symbols first (so they appear behind elements)
+        self.plot_node_supports(ax, nodes)
+        
         # Plot each element's deflected shape using total structural deflections
         for i, elem in enumerate(elements, 1):
             elem_key = f'element_{i}'
@@ -466,21 +602,21 @@ class FrameAnalysis:
                 total_structural_deflections, elem['assembly_matrix'], 
                 display_magnitude, 30, elem['angle'], f"Element {i}", False)
         
-        # NEW: Extract node information and add DOF textboxes
+        # Extract node information and add DOF textboxes
         if show_deflection_labels and dof_definitions:
-            nodes = self.extract_node_coordinates_and_dofs(elements, dof_definitions, total_structural_deflections)
-            self.add_node_dof_textboxes(ax, nodes)
+            node_dofs = self.extract_node_coordinates_and_dofs(nodes, dof_definitions, total_structural_deflections)
+            self.add_node_dof_textboxes(ax, node_dofs)
             
             # Print to console as well
             print("\nNODE DOF INFORMATION:")
             print("="*50)
-            for node_coords, node_data in nodes.items():
-                print(f"\nNode at ({node_coords[0]:.1f}, {node_coords[1]:.1f}):")
+            for node_coords, node_data in node_dofs.items():
+                print(f"\n{node_data['label']} at ({node_coords[0]:.1f}, {node_coords[1]:.1f}) - {node_data['type'].upper()} support:")
                 if node_data['dofs']:
                     for dof in node_data['dofs']:
                         print(f"  {dof['name']:15s}: {dof['value']:12.6e} {dof['unit']}")
                 else:
-                    print("  No DOFs assigned")
+                    print("  No DOFs assigned (Fully restrained)")
             print()
         
         ax.set_aspect('equal')
@@ -488,7 +624,7 @@ class FrameAnalysis:
         ax.legend()
         ax.set_xlabel('X (m)')
         ax.set_ylabel('Y (m)')
-        ax.set_title(f'Frame Deflection Analysis with Node DOF Information\n(Magnification Factor: {display_magnitude}x)')
+        ax.set_title(f'Frame Analysis with Node Support Types and DOF Information\n(Magnification Factor: {display_magnitude}x)')
         plt.tight_layout()
         plt.show()
         
