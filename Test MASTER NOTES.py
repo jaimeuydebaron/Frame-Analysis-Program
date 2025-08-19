@@ -127,6 +127,12 @@ Frame Stiffness:
 (C) Mid-span Point Load:
     Q_PL = [0, w/2, wL/8, 0, w/2, -wL/8]
 
+(D) Distributed Axial Load
+    Q_DAL = [wL/2, 0, 0, -wL/2, 0, 0]
+
+(E) Concentrated Axial Load
+    Q_CAL = [0, 0, 0, 0, 0, 0]
+
 ===========================================================
 6. GLOBAL SYSTEM ASSEMBLY
 ===========================================================

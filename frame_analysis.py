@@ -392,7 +392,7 @@ class FrameAnalysis:
             for local_dof in range(3):
                 dof_name = f"Node{node_id}_{dof_names[local_dof]}"
                 
-                # Determine if this DOF is constrained
+                # Determine if this DOF is constrained based on support type
                 is_constrained = False
                 if node_type == 'fixed':
                     is_constrained = True
@@ -401,6 +401,10 @@ class FrameAnalysis:
                 elif node_type == 'roller_y' and local_dof == 0:  # ux constrained
                     is_constrained = True
                 elif node_type == 'pinned' and local_dof in [0, 1]:  # ux, uy constrained
+                    is_constrained = True
+                elif node_type == 'symmetrical_roller_x' and local_dof in [1, 2]:  # NEW: uy, rz constrained, ux free
+                    is_constrained = True
+                elif node_type == 'symmetrical_roller_y' and local_dof in [0, 2]:  # NEW: ux, rz constrained, uy free
                     is_constrained = True
                 
                 all_dofs.append({
@@ -819,6 +823,12 @@ class FrameAnalysis:
             elif n_type == 'roller_x' or n_type == 'roller_y':
                 marker = 'D'  # diamond
                 color = 'green'
+            elif n_type == 'symmetrical_roller_x':  # NEW: Symmetrical roller in X direction
+                marker = '<'  # left triangle
+                color = 'purple'
+            elif n_type == 'symmetrical_roller_y':  # NEW: Symmetrical roller in Y direction
+                marker = 'v'  # down triangle
+                color = 'purple'
             elif n_type == 'free':
                 marker = '^'  # triangle
                 color = 'orange'
