@@ -193,6 +193,150 @@ class FrameAnalysis:
         CAL_global_forcing_vector = assembly_matrix @ big_F
         return CAL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F
 
+    # NEW REACTION CALCULATION FUNCTIONS
+    def calculate_reactions(self, config, results):
+        """
+        Calculate reaction forces at all constrained nodes.
+        
+        Reaction = Element Forces - Load Equivalent Forces
+        """
+        reactions = {}
+        nodes = config['nodes']
+        elements = config['elements']
+        
+        # Initialize reaction storage for all nodes
+        for node_id, node_info in nodes.items():
+            if self.is_constrained_node(node_info['type']):
+                reactions[node_id] = {
+                    'type': node_info['type'],
+                    'coords': node_info['coords'],
+                    'forces': np.zeros(3),  # [Rx, Ry, Mz]
+                    'constrained_dofs': self.get_constrained_dofs(node_info['type'])
+                }
+        
+        # For each constrained node, calculate reactions
+        for node_id in reactions.keys():
+            element_forces = np.zeros(3)  # Forces from connected elements
+            load_forces = np.zeros(3)     # Forces from loads on connected elements
+            
+            # Find all elements connected to this node
+            for elem_idx, elem in enumerate(elements, 1):
+                elem_key = f'element_{elem_idx}'
+                
+                # Check if this element connects to the current node
+                if elem['start_node'] == node_id:
+                    # Node is at start of element (indices 0-2)
+                    element_forces += results[elem_key]['global_forces'][:3]
+                    
+                    # Add load contributions from this element
+                    for load_info in results[elem_key]['loads']:
+                        load_forces += load_info['equiv_global'][:3]
+                        
+                elif elem['end_node'] == node_id:
+                    # Node is at end of element (indices 3-5) 
+                    element_forces += results[elem_key]['global_forces'][3:6]
+                    
+                    # Add load contributions from this element
+                    for load_info in results[elem_key]['loads']:
+                        load_forces += load_info['equiv_global'][3:6]
+            
+            # Calculate reaction: Element forces - Load equivalent forces
+            reactions[node_id]['forces'] = element_forces - load_forces
+            
+            # Zero out reactions for unconstrained DOFs
+            constrained_dofs = reactions[node_id]['constrained_dofs']
+            for i in range(3):
+                if not constrained_dofs[i]:
+                    reactions[node_id]['forces'][i] = 0.0
+        
+        return reactions
+    
+    def is_constrained_node(self, node_type):
+        """Check if a node has any constraints"""
+        return node_type in ['fixed', 'pinned', 'roller_x', 'roller_y', 
+                           'symmetrical_roller_x', 'symmetrical_roller_y']
+    
+    def get_constrained_dofs(self, node_type):
+        """Get which DOFs are constrained for each node type"""
+        constraints = {
+            'fixed': [True, True, True],              # ux, uy, rz all constrained
+            'pinned': [True, True, False],            # ux, uy constrained, rz free
+            'roller_x': [False, True, False],         # uy constrained
+            'roller_y': [True, False, False],         # ux constrained  
+            'symmetrical_roller_x': [False, True, True],  # uy, rz constrained
+            'symmetrical_roller_y': [True, False, True], # ux, rz constrained
+            'free': [False, False, False]             # All free
+        }
+        return constraints.get(node_type, [False, False, False])
+
+    def print_reactions(self, reactions):
+        """Print reaction forces in a formatted table"""
+        if not reactions:
+            print("\nNo reaction forces to display (no constrained nodes)")
+            return
+        
+        print(f"\n{'='*80}")
+        print(f"{'REACTION FORCES AT CONSTRAINED NODES':^80}")
+        print(f"{'='*80}")
+        
+        print(f"{'Node':<6} {'Type':<20} {'Rx [N]':<15} {'Ry [N]':<15} {'Mz [N⋅m]':<15}")
+        print(f"{'-'*80}")
+        
+        for node_id, reaction_data in reactions.items():
+            node_type = reaction_data['type']
+            forces = reaction_data['forces']
+            constrained = reaction_data['constrained_dofs']
+            
+            # Format values, show only constrained DOFs
+            rx_str = f"{forces[0]:12.3f}" if constrained[0] else "---"
+            ry_str = f"{forces[1]:12.3f}" if constrained[1] else "---" 
+            mz_str = f"{forces[2]:12.3f}" if constrained[2] else "---"
+            
+            print(f"{node_id:<6} {node_type:<20} {rx_str:<15} {ry_str:<15} {mz_str:<15}")
+        
+        print(f"{'-'*80}\n")
+
+    def add_reaction_arrows_to_plot(self, ax, reactions, scale_factor=1.0):
+        """Add reaction force arrows to the plot"""
+        if not reactions:
+            return
+        
+        arrow_length = 0.5  # Fixed arrow length
+        
+        for node_id, reaction_data in reactions.items():
+            coords = reaction_data['coords']
+            forces = reaction_data['forces']
+            constrained = reaction_data['constrained_dofs']
+            
+            x, y = coords[0], coords[1]
+            
+            # Draw force arrows for constrained DOFs only
+            if constrained[0] and abs(forces[0]) > 1e-6:  # Rx
+                # Use fixed arrow length, direction based on force sign
+                dx = arrow_length if forces[0] > 0 else -arrow_length
+                ax.arrow(x, y, dx, 0, head_width=0.1, head_length=0.05, 
+                        fc='red', ec='red', linewidth=2, alpha=0.8)
+                ax.text(x + dx/2, y + 0.15, f'Rx={forces[0]:.1f}N', 
+                    ha='center', va='bottom', fontsize=8, color='red', weight='bold')
+            
+            if constrained[1] and abs(forces[1]) > 1e-6:  # Ry  
+                # Use fixed arrow length, direction based on force sign
+                dy = arrow_length if forces[1] > 0 else -arrow_length
+                ax.arrow(x, y, 0, dy, head_width=0.1, head_length=0.05,
+                        fc='blue', ec='blue', linewidth=2, alpha=0.8)
+                ax.text(x - 0.15, y + dy/2, f'Ry={forces[1]:.1f}N',
+                    ha='right', va='center', fontsize=8, color='blue', weight='bold',
+                    rotation=90)
+            
+            if constrained[2] and abs(forces[2]) > 1e-6:  # Mz
+                # Draw moment as a curved arrow 
+                circle = plt.Circle((x, y), 0.2, fill=False, color='green', linewidth=2, alpha=0.8)
+                ax.add_patch(circle)
+                
+                # Add moment magnitude text
+                ax.text(x + 0.25, y, f'Mz={forces[2]:.1f}N⋅m',
+                    ha='left', va='center', fontsize=8, color='green', weight='bold')
+
     # ENHANCED PRINTING FUNCTIONS
     def find_common_factor(self, matrix):
         """Find common factor to simplify matrix display using engineering increments (10^3)"""
@@ -660,7 +804,7 @@ class FrameAnalysis:
                 a = load.get('a', elem['length']/2)  # Default to mid-span
                 load_vector, equiv_local, equiv_global = self.build_PDL_global_forcing_vector(
                     load['magnitude'], elem['length'], a,
-                    elem['assembly_matrix'], results[elem_key]['transformation_matrix'])
+                    elem['assembly_matrix'], results[elem_key]['transformation_matrix'], direction)
                 load_info['description'] = f"Point Load: {load['magnitude']} N at x={a} m"
                 load_info['a'] = a
                 
@@ -720,6 +864,9 @@ class FrameAnalysis:
             results[elem_key]['local_forces'] = local_forces
             results[elem_key]['global_forces'] = global_forces
         
+        # NEW: Calculate reaction forces
+        reactions = self.calculate_reactions(config, results)
+        
         # Print results
         print_func = self.print_matrix_vertical if show_matrices else self.print_matrix_standard
         
@@ -774,8 +921,11 @@ class FrameAnalysis:
                 print_func(f"GLOBAL forcing vector contribution Q_{load_label}_{j}", 
                           load_info['global_vector'], "[N, N⋅m]")
         
-        print_func("Total structural deflections {d}_total", total_structural_deflections, "[m, rad]")
-        print_func("TOTAL global forcing vector {F}_total", total_global_forcing_vector, "[N, N⋅m]")
+        print_func("Total structural deflections d_total", total_structural_deflections, "[m, rad]")
+        print_func("TOTAL global forcing vector Q_total", total_global_forcing_vector, "[N, N⋅m]")
+        
+        # NEW: Print reaction forces
+        self.print_reactions(reactions)
         
         print("\n" + "="*100)
         print("                                END OF RESULTS")
@@ -807,6 +957,9 @@ class FrameAnalysis:
 
         # Add DOF textboxes to plot
         self.add_node_dof_textboxes(ax, nodes_with_dofs, config['nodes'])
+
+        # NEW: Add reaction arrows to plot
+        self.add_reaction_arrows_to_plot(ax, reactions, scale_factor=5000)
 
         # Plot symbols for node types
         for node_id, node in config['nodes'].items():
@@ -848,7 +1001,7 @@ class FrameAnalysis:
         ax.legend()
         ax.set_xlabel('X (m)')
         ax.set_ylabel('Y (m)')
-        ax.set_title(f'Frame Deflection Analysis with Node DOF Information\n(Magnification Factor: {display_magnitude}x)')
+        ax.set_title(f'Frame Deflection Analysis with Node DOF Information and Reactions\n(Magnification Factor: {display_magnitude}x)')
         plt.tight_layout()
         plt.show()
         

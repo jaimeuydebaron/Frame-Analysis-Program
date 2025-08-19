@@ -198,7 +198,7 @@ class FrameAnalysis:
         """
         Calculate reaction forces at all constrained nodes.
         
-        Reaction = (Element forces at node) - (Load equivalent forces at node)
+        Reaction = Element Forces - Load Equivalent Forces
         """
         reactions = {}
         nodes = config['nodes']
@@ -240,7 +240,7 @@ class FrameAnalysis:
                     for load_info in results[elem_key]['loads']:
                         load_forces += load_info['equiv_global'][3:6]
             
-            # Calculate reaction: Element forces - Load forces
+            # Calculate reaction: Element forces - Load equivalent forces
             reactions[node_id]['forces'] = element_forces - load_forces
             
             # Zero out reactions for unconstrained DOFs
@@ -921,8 +921,8 @@ class FrameAnalysis:
                 print_func(f"GLOBAL forcing vector contribution Q_{load_label}_{j}", 
                           load_info['global_vector'], "[N, N⋅m]")
         
-        print_func("Total structural deflections {d}_total", total_structural_deflections, "[m, rad]")
-        print_func("TOTAL global forcing vector {F}_total", total_global_forcing_vector, "[N, N⋅m]")
+        print_func("Total structural deflections d_total", total_structural_deflections, "[m, rad]")
+        print_func("TOTAL global forcing vector Q_total", total_global_forcing_vector, "[N, N⋅m]")
         
         # NEW: Print reaction forces
         self.print_reactions(reactions)

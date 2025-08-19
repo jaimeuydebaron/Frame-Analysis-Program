@@ -6,7 +6,7 @@ def main():
 
     # Material and section properties - replace with your values
     E = 200e9  # Young's modulus [Pa] - typical steel: 200 GPa
-    I = 6e-6   # Second moment of area [m^4]
+    I = 1e-4   # Second moment of area [m^4]
     A = 2e-4   # Cross-sectional area [m^2]
     
     config = {
@@ -14,77 +14,58 @@ def main():
         # Each node needs: coordinates [x, y] in meters and boundary condition type
         'nodes': {
             # Node ID: {'coords': np.array([x_coordinate, y_coordinate]), 'type': 'boundary_condition_type'}
-            1: {'coords': np.array([0, 0]),   'type': 'pinned'},                    
-            2: {'coords': np.array([3, 4]),   'type': 'free'},                      
-            3: {'coords': np.array([6, 4]),   'type': 'symmetrical_roller_y'},     
-            4: {'coords': np.array([6, 0]),   'type': 'symmetrical_roller_y'},    
+            1: {'coords': np.array([0, 0]),   'type': 'free'},                    
+            2: {'coords': np.array([0, -3]),   'type': 'pinned'},                      
+            3: {'coords': np.array([-4, -3]),   'type': 'fixed'},     
+            4: {'coords': np.array([-4 * np.cos(np.radians(30)), 4 * np.sin(np.radians(30))]),   'type': 'fixed'},    
         },
 
         # ELEMENTS: Define all frame elements connecting your nodes
         'elements': [
             {  # Element connecting specified start_node to end_node
-                'start_node': 2, 'end_node': 3,          
-                'length': 3,            # Element length [m]
-                'angle': 0,             # Element angle [degrees]
-                'assembly_matrix': np.array([[0, 0, 0, 0, 0, 0],  
-                                             [1, 0, 0, 0, 0, 0],  
-                                             [0, 1, 0, 0, 0, 0],
-                                             [0, 0, 1, 0, 0, 0], 
-                                             [0, 0, 0, 0, 1, 0], 
+                'start_node': 4, 'end_node': 1,          
+                'length': 4,            # Element length [m]
+                'angle': 330,             # Element angle [degrees]
+                'assembly_matrix': np.array([[0, 0, 0, 1, 0, 0],  
+                                             [0, 0, 0, 0, 1, 0],  
+                                             [0, 0, 0, 0, 0, 1],
                                              [0, 0, 0, 0, 0, 0]]),
 
                 'second_moment_of_area': I, 'area': A, 'youngs_modulus': E,
             },
             {  # Second element
                 'start_node': 1, 'end_node': 2,         
-                'length': 5,            # Element length [m]
-                'angle': 53.13,         # Element angle [degrees]
-                'assembly_matrix': np.array([[0, 0, 1, 0, 0, 0],
-                                             [0, 0, 0, 1, 0, 0],   
-                                             [0, 0, 0, 0, 1, 0],
-                                             [0, 0, 0, 0, 0, 1],
-                                             [0, 0, 0, 0, 0, 0],
-                                             [0, 0, 0, 0, 0, 0]]),
+                'length': 3,            # Element length [m]
+                'angle': 270,         # Element angle [degrees]
+                'assembly_matrix': np.array([[1, 0, 0, 0, 0, 0],
+                                             [0, 1, 0, 0, 0, 0],   
+                                             [0, 0, 1, 0, 0, 0],
+                                             [0, 0, 0, 0, 0, 1]]),
 
                 'second_moment_of_area': I, 'area': A, 'youngs_modulus': E,
             },
             {  # Third element
-                'start_node': 2, 'end_node': 4,       
-                'length': 5,            # Element length [m]
-                'angle': 306.87,        # Element angle [degrees]
+                'start_node': 2, 'end_node': 3,       
+                'length': 4,            # Element length [m]
+                'angle': 0,        # Element angle [degrees]
                 'assembly_matrix': np.array([[0, 0, 0, 0, 0, 0],
-                                             [1, 0, 0, 0, 0, 0],   
-                                             [0, 1, 0, 0, 0, 0],
-                                             [0, 0, 1, 0, 0, 0],
-                                             [0, 0, 0, 0, 0, 0],
-                                             [0, 0, 0, 0, 1, 0]]),
-
-                'second_moment_of_area': I, 'area': A, 'youngs_modulus': E,
-            },
-            {  # Fourth element
-                'start_node': 1, 'end_node': 4,   
-                'length': 6,            # Element length [m]
-                'angle': 0,             # Element angle [degrees]
-                'assembly_matrix': np.array([[0, 0, 1, 0, 0, 0],
                                              [0, 0, 0, 0, 0, 0],   
                                              [0, 0, 0, 0, 0, 0],
-                                             [0, 0, 0, 0, 0, 0],
-                                             [0, 0, 0, 0, 0, 0],
-                                             [0, 0, 0, 0, 1, 0]]),
+                                             [0, 0, 0, 0, 0, 1]]),
 
-                'second_moment_of_area': I, 'area': A, 'youngs_modulus': E,         
+                'second_moment_of_area': I, 'area': A, 'youngs_modulus': E,
             }
         ],
 
         # LOADS: Define distributed and point loads on elements
         'loads': [
             # Distributed loads - applied to specific elements
-            {'type': 'UDL', 'element': 4, 'magnitude': -40000, 'direction': 'local'},  # Uniformly distributed load
+            {'type': 'UDL', 'element': 3, 'magnitude': 117720, 'direction': 'local'},  # Uniformly distributed load
             
             # Other load types (uncomment and modify as needed):
             # {'type': 'UDL', 'element': 2, 'magnitude': -5000, 'direction': 'vertical'},     # UDL in vertical direction
             # {'type': 'LVL_peakXZERO', 'element': 1, 'magnitude': 10000},                    # Linearly varying load (peak at x=0)
-            # {'type': 'LVL_peakXL', 'element': 1, 'magnitude': 10000},                       # Linearly varying load (peak at x=L)
+            {'type': 'LVL_peakXL', 'element': 2, 'magnitude': -117720},                       # Linearly varying load (peak at x=L)
             # {'type': 'PDL', 'element': 2, 'magnitude': 20000, 'direction': 'vertical', 'a': 1.5},  # Point load at distance 'a'
             # {'type': 'DAL', 'element': 2, 'magnitude': 15000},                              # Distributed axial load
             # {'type': 'CAL', 'element': 2, 'magnitude': 10000, 'a': 1.5},                   # Concentrated axial load at distance 'a'
@@ -93,10 +74,10 @@ def main():
         # NODAL FORCES: Direct forces/moments applied at nodes (in global DOF order)
         # Length must match total number of unconstrained DOFs in your system
         # Format: [Force_DOF1, Force_DOF2, ..., Moment_DOF_n] in [N] and [N⋅m]
-        'normal_forces': [0, 0, 0, 0, 0, 0],  # Zero forces/moments on all unconstrained DOFs
+        'normal_forces': [0, 0, 0, 0],  # Zero forces/moments on all unconstrained DOFs
         
         # DISPLAY OPTIONS: Control output format and visualization
-        'display_magnitude': 10,        # Deflection magnification factor for plotting
+        'display_magnitude': 100,        # Deflection magnification factor for plotting
         'show_matrices': True,          # True = vertical matrix display, False = compact display
         'show_deflection_labels': True  # True = show deflection values on plot
     }
