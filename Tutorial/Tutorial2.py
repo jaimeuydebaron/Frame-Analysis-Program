@@ -16,7 +16,7 @@ length1 = 1
 Q1_1 = 0
 Q2_1 = 100000
 alpha_1 = 0
-assembly_matrix_1 = np.array([[0 , 0, 1, 0],
+assembly_matrix_1 = np.array([[0, 0, 1, 0],
                            [0, 0, 0, 1]]) # Generated manually
 
 # Element 2
@@ -26,7 +26,7 @@ length2 = 1.41
 Q1_2 = 0
 Q2_2 = 100000
 alpha_2 = 45
-assembly_matrix_2 = np.array([[0 , 0, 1, 0],
+assembly_matrix_2 = np.array([[0, 0, 1, 0],
                             [0, 0, 0, 1]]) # Generated manually
 
 cross_sectional_area_1 = np.pi * (diameter_1  / 2) ** 2
