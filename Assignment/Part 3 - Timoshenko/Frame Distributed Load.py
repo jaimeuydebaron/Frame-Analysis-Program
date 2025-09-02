@@ -7,7 +7,7 @@ def main():
     # Material and section properties
     E = 200e9  # Young's modulus [Pa] - typical steel: 200 GPa
     G = 77e9
-    I = 1.065917e-5   # Second moment of area [m^4]
+    I = 1.36288e-5   # Second moment of area [m^4]
     A = 0.004496   # Cross-sectional area [m^2]
     c = 0.07
     A_s = 0.14 * 0.012
@@ -264,8 +264,8 @@ def main():
         'loads': [
             # Example loads - uncomment and modify as needed:
 
-            {'type': 'UDL', 'element': 5, 'magnitude': 102921.3, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
-            {'type': 'UDL', 'element': 9, 'magnitude': 102921.3, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
+            {'type': 'UDL', 'element': 5, 'magnitude': 103948.2, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
+            {'type': 'UDL', 'element': 9, 'magnitude': 103948.2, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
 
             # {'type': 'PDL', 'element': 8, 'magnitude': -10000, 'direction': 'vertical', 'a': 0.5},  # 10 kN downward at midspan of beam 5-6
         ],

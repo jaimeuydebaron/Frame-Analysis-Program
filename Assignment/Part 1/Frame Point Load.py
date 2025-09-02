@@ -7,7 +7,7 @@ def main():
     # Material and section properties
     E = 200e9  # Young's modulus [Pa] - typical steel: 200 GPa
     G = 77e9
-    I = 1.065917e-5   # Second moment of area [m^4]
+    I = 1.36288e-5   # Second moment of area [m^4]
     A = 0.004496   # Cross-sectional area [m^2]
     c = 0.07      # Distance from neutral axis to extreme fiber [m]
     
