@@ -70,26 +70,47 @@ class FrameAnalysis:
             L: Element length [m]
             assembly_matrix: Element assembly matrix
             transformation_matrix: Element transformation matrix
-            direction: 'local' (perpendicular to element) or 'vertical' (vertically downward)
+            direction: 'local', 'vertical', or 'horizontal'
         
         Returns:
-            tuple: (UDL_global_forcing_vector, equivalent_forcing_element_coordinates)
+            tuple: (UDL_global_forcing_vector, equivalent_forcing_element_coordinates, big_F)
         """
         if direction == 'local':
-            # Original implementation - load acts perpendicular to element
+            # Load acts perpendicular to element (original implementation)
             equivalent_forcing_element_coordinates = np.array([0,
                                                             w_bar * L / 2,
                                                             w_bar * L ** 2 / 12,
                                                             0,
                                                             w_bar * L / 2,
                                                             -w_bar * L ** 2 / 12])
+                                                            
         elif direction == 'vertical':
+            # Load acts vertically downward in global coordinates
             # Extract angle from transformation matrix
-            angle_rad = - 1 * np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
-
-            # Decompose vertical load into local components
-            w_transverse = w_bar * np.cos(angle_rad)  # Perpendicular to element
-            w_axial = w_bar * np.sin(angle_rad)       # Along element axis
+            angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+            
+            # For vertical load (pointing downward): w_global_x = 0, w_global_y = -w_bar
+            # Transform to local coordinates
+            w_axial = 0 * np.cos(angle_rad) + (-w_bar) * np.sin(angle_rad)     # Along element axis
+            w_transverse = -0 * np.sin(angle_rad) + (-w_bar) * np.cos(angle_rad)  # Perpendicular to element
+            
+            # Combine transverse and axial components
+            equivalent_forcing_element_coordinates = np.array([w_axial * L / 2,           # Axial at node 1
+                                                            w_transverse * L / 2,       # Transverse at node 1
+                                                            w_transverse * L ** 2 / 12, # Moment at node 1
+                                                            w_axial * L / 2,           # Axial at node 2
+                                                            w_transverse * L / 2,       # Transverse at node 2
+                                                            -w_transverse * L ** 2 / 12]) # Moment at node 2
+                                                            
+        elif direction == 'horizontal':
+            # Load acts horizontally (to the right) in global coordinates
+            # Extract angle from transformation matrix
+            angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+            
+            # For horizontal load (pointing right): w_global_x = w_bar, w_global_y = 0
+            # Transform to local coordinates
+            w_axial = w_bar * np.cos(angle_rad) + 0 * np.sin(angle_rad)     # Along element axis
+            w_transverse = -w_bar * np.sin(angle_rad) + 0 * np.cos(angle_rad)  # Perpendicular to element
             
             # Combine transverse and axial components
             equivalent_forcing_element_coordinates = np.array([w_axial * L / 2,           # Axial at node 1
@@ -99,7 +120,7 @@ class FrameAnalysis:
                                                             w_transverse * L / 2,       # Transverse at node 2
                                                             -w_transverse * L ** 2 / 12]) # Moment at node 2
         else:
-            raise ValueError(f"Unknown direction: {direction}. Use 'local' or 'vertical'")
+            raise ValueError(f"Unknown direction: {direction}. Use 'local', 'vertical', or 'horizontal'")
         
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         UDL_global_forcing_vector = assembly_matrix @ big_F
@@ -139,33 +160,63 @@ class FrameAnalysis:
 
     def build_PDL_global_forcing_vector(self, P, L, a, assembly_matrix, transformation_matrix, direction):
         """
-        Build global forcing vector for a point load at mid-span.
+        Build global forcing vector for a point load.
+        
+        Args:
+            P: Point load magnitude [N]
+            L: Element length [m]
+            a: Distance from start node to load location [m]
+            assembly_matrix: Element assembly matrix
+            transformation_matrix: Element transformation matrix
+            direction: 'local', 'vertical', or 'horizontal'
         """
         if direction == 'local':
-            # Original implementation
+            # Load acts perpendicular to element (original implementation)
+            # For mid-span loading (a = L/2)
             equivalent_forcing_element_coordinates = np.array([0,
                                                             P / 2,
                                                             P * L / 8,
                                                             0,
                                                             P / 2,
                                                             -P * L / 8])
+                                                            
         elif direction == 'vertical':
+            # Load acts vertically downward in global coordinates
             # Extract angle from transformation matrix
             angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
             
-            # Decompose vertical load into local components
-            P_transverse = P * np.cos(angle_rad)
-            P_axial = P * np.sin(angle_rad)
+            # For vertical load (pointing downward): P_global_x = 0, P_global_y = -P
+            # Transform to local coordinates
+            P_axial = 0 * np.cos(angle_rad) + (-P) * np.sin(angle_rad)     # Along element axis
+            P_transverse = -0 * np.sin(angle_rad) + (-P) * np.cos(angle_rad)  # Perpendicular to element
             
-            # Combine components
-            equivalent_forcing_element_coordinates = np.array([P_axial * (1 - a / L),           # Half axial at node 1
-                                                            P_transverse / 2,       # Half transverse at node 1
-                                                            P_transverse * L / 8,   # Moment at node 1
-                                                            P_axial * a/ L,           # Half axial at node 2
-                                                            P_transverse / 2,       # Half transverse at node 2
-                                                            -P_transverse * L / 8]) # Moment at node 2
+            # For mid-span loading, combine components
+            equivalent_forcing_element_coordinates = np.array([P_axial / 2,                 # Half axial at node 1
+                                                            P_transverse / 2,           # Half transverse at node 1
+                                                            P_transverse * L / 8,       # Moment at node 1
+                                                            P_axial / 2,               # Half axial at node 2
+                                                            P_transverse / 2,           # Half transverse at node 2
+                                                            -P_transverse * L / 8])     # Moment at node 2
+                                                            
+        elif direction == 'horizontal':
+            # Load acts horizontally (to the right) in global coordinates
+            # Extract angle from transformation matrix
+            angle_rad = np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+            
+            # For horizontal load (pointing right): P_global_x = P, P_global_y = 0
+            # Transform to local coordinates
+            P_axial = P * np.cos(angle_rad) + 0 * np.sin(angle_rad)     # Along element axis
+            P_transverse = -P * np.sin(angle_rad) + 0 * np.cos(angle_rad)  # Perpendicular to element
+            
+            # For mid-span loading, combine components
+            equivalent_forcing_element_coordinates = np.array([P_axial / 2,                 # Half axial at node 1
+                                                            P_transverse / 2,           # Half transverse at node 1
+                                                            P_transverse * L / 8,       # Moment at node 1
+                                                            P_axial / 2,               # Half axial at node 2
+                                                            P_transverse / 2,           # Half transverse at node 2
+                                                            -P_transverse * L / 8])     # Moment at node 2
         else:
-            raise ValueError(f"Unknown direction: {direction}. Use 'local' or 'vertical'")
+            raise ValueError(f"Unknown direction: {direction}. Use 'local', 'vertical', or 'horizontal'")
         
         big_F = np.transpose(transformation_matrix) @ equivalent_forcing_element_coordinates
         PDL_global_forcing_vector = assembly_matrix @ big_F

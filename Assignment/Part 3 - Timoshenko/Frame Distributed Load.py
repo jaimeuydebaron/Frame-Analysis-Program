@@ -264,8 +264,8 @@ def main():
         'loads': [
             # Example loads - uncomment and modify as needed:
 
-            {'type': 'UDL', 'element': 5, 'magnitude': 103948.2, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
-            {'type': 'UDL', 'element': 9, 'magnitude': 103948.2, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
+            {'type': 'UDL', 'element': 5, 'magnitude': -19600.7, 'direction': 'local'},  # 5 kN/m downward on beam 3-4
+            {'type': 'UDL', 'element': 9, 'magnitude': -19600.7, 'direction': 'local'},  # 5 kN/m downward on beam 3-4
 
             # {'type': 'PDL', 'element': 8, 'magnitude': -10000, 'direction': 'vertical', 'a': 0.5},  # 10 kN downward at midspan of beam 5-6
         ],

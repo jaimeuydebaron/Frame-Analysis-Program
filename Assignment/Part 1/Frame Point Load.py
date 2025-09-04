@@ -262,13 +262,14 @@ def main():
         # LOADS: Define distributed and point loads on elements
         'loads': [
             # Example loads - uncomment and modify as needed:
-            # {'type': 'UDL', 'element': 4, 'magnitude': -5000, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
-            # {'type': 'PDL', 'element': 8, 'magnitude': -10000, 'direction': 'vertical', 'a': 0.5},  # 10 kN downward at midspan of beam 5-6
+            # {'type': 'UDL', 'element': 5, 'magnitude': -4880, 'direction': 'vertical'},  # 5 kN/m downward on beam 3-4
+            # {'type': 'UDL', 'element': 9, 'magnitude': -4880, 'direction': 'vertical', 'a': 0.5},  # 10 kN downward at midspan of beam 5-6
         ],
         
         # NODAL FORCES: Direct forces/moments applied at nodes (in global DOF order)
         # Order: [3ux, 3uy, 3rz, 4ux, 4uy, 4rz, 5ux, 5uy, 5rz, 6ux, 6uy, 6rz, 7ux, 7uy, 7rz]
-        'normal_forces': [15000, 0, 0, 0, 0, 0, 30000, 0, 0, 0, 0, 0, 15000, 0, 0],
+        # 'normal_forces': [15000, 0, 0, 0, 0, 0, 30000, 0, 0, 0, 0, 0, 15000, 0, 0],
+        'normal_forces': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         
         # DISPLAY OPTIONS: Control output format and visualization
         'display_magnitude': 100,        # Deflection magnification factor for plotting

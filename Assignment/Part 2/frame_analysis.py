@@ -85,8 +85,9 @@ class FrameAnalysis:
                                                             -w_bar * L ** 2 / 12])
         elif direction == 'vertical':
             # Extract angle from transformation matrix
-            angle_rad = - 1 * np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
-
+            angle_rad = -1 * np.arctan2(transformation_matrix[1, 0], transformation_matrix[0, 0])
+            angle_deg = np.degrees(angle_rad)
+            print(angle_deg)
             # Decompose vertical load into local components
             w_transverse = w_bar * np.cos(angle_rad)  # Perpendicular to element
             w_axial = w_bar * np.sin(angle_rad)       # Along element axis
